@@ -36,6 +36,10 @@ jobs:
             mkdir -p "dist/$route"
             cp dist/index.html "dist/$route/index.html"
           done
+          for product_id in $(grep -oE "id: '[^']+'" src/data/products.js | cut -d"'" -f2); do
+            mkdir -p "dist/products/$product_id"
+            cp dist/index.html "dist/products/$product_id/index.html"
+          done
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
