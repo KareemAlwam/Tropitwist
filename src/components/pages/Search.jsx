@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { products } from '../../data/products';
+import { route } from '../../utils/routes';
 
 const FILTERS = ['All products', 'Skincare', 'Body care', 'Bundles'];
 const SORT_OPTIONS = [
@@ -80,7 +81,7 @@ export default function Search() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-12">
             {results.map((product) => (
               <article key={product.id} className="group">
-                <a href={`/products/${product.id}`} className="block">
+                <a href={route(`/products/${product.id}`)} className="block">
                   <div className="relative aspect-[4/5] rounded-brand overflow-hidden bg-[#FFF1D8] soft-shadow">
                     {product.bestseller && <span className="absolute left-4 top-4 z-10 rounded-full bg-cherry text-cream px-3 py-1.5 text-[9px] font-bold tracking-widest">BESTSELLER</span>}
                     {product.compareAtPrice > product.price && <span className="absolute right-4 top-4 z-10 rounded-full bg-banana px-3 py-1.5 text-[9px] font-bold tracking-widest">SALE</span>}

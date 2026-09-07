@@ -37,7 +37,7 @@ export default function About() {
           <div>
             <h2 className="font-display font-bold text-ink text-5xl md:text-8xl leading-[.84]">SKINCARE SHOULD<br /><span className="text-cherry">FEEL LIKE FREEDOM.</span></h2>
             <p className="mt-8 max-w-xl text-sm md:text-base text-ink/65 leading-relaxed">No twelve-step pressure. No impossible promises. Just good formulas, clear choices, and a little joy in the everyday ritual. Tropitwist was made for the mornings you are running late and the evenings you finally get to slow down.</p>
-            <div className="flex flex-wrap gap-3 mt-8"><a href="/skincare" className="rounded-full bg-ink text-cream px-6 py-3 text-xs font-bold tracking-widest hover:bg-cherry transition-colors">SHOP SKINCARE</a><a href="/bundles" className="rounded-full border border-ink/20 px-6 py-3 text-xs font-bold tracking-widest hover:border-cherry hover:text-cherry transition-colors">EXPLORE BUNDLES</a></div>
+            <div className="flex flex-wrap gap-3 mt-8"><a href={route('/skincare')} className="rounded-full bg-ink text-cream px-6 py-3 text-xs font-bold tracking-widest hover:bg-cherry transition-colors">SHOP SKINCARE</a><a href={route('/bundles')} className="rounded-full border border-ink/20 px-6 py-3 text-xs font-bold tracking-widest hover:border-cherry hover:text-cherry transition-colors">EXPLORE BUNDLES</a></div>
           </div>
         </div>
       </section>
@@ -61,9 +61,10 @@ export default function About() {
       <section className="max-w-7xl mx-auto px-4 py-16 md:py-24">
         <div className="bg-banana rounded-brand p-8 md:p-16 flex flex-col md:flex-row md:items-center justify-between gap-10">
           <div><p className="text-[10px] font-bold tracking-[0.22em] mb-3">READY WHEN YOU ARE</p><h2 className="font-display font-bold text-6xl md:text-8xl leading-[.8]">MEET YOUR<br /><span className="text-cherry">NEW ROUTINE.</span></h2></div>
-          <a href="/skincare" className="rounded-full bg-cherry text-cream px-7 py-4 text-xs font-bold tracking-widest w-fit hover:bg-ink transition-colors">START GLOWING</a>
+          <a href={route('/skincare')} className="rounded-full bg-cherry text-cream px-7 py-4 text-xs font-bold tracking-widest w-fit hover:bg-ink transition-colors">START GLOWING</a>
         </div>
       </section>
     </main>
   );
 }
+import { route } from '../../utils/routes';

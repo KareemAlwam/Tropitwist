@@ -1,4 +1,5 @@
 import { siteContent } from '../../data/siteContent';
+import { route } from '../../utils/routes';
 
 export default function CampaignBanner() {
   const { campaign } = siteContent;
@@ -22,7 +23,7 @@ export default function CampaignBanner() {
         <p className="font-body text-[10px] font-bold tracking-[0.2em] text-ink/70 mb-4">{campaign.sideEyebrow}</p>
         <h3 className="font-display font-bold text-ink text-5xl md:text-7xl leading-[0.85] tracking-tight mb-6">{campaign.sideTitle.map((line, index) => <span key={line} className={`block ${index === campaign.sideTitle.length - 1 ? 'text-cherry' : ''}`}>{line}</span>)}</h3>
         <p className="font-body text-ink/75 text-sm md:text-base max-w-md mb-8 leading-relaxed">{campaign.description}</p>
-        <a href={campaign.buttonHref} className="inline-block bg-ink text-cream font-body font-bold text-xs tracking-widest px-7 py-4 rounded-full hover:bg-cherry transition-colors w-fit">{campaign.buttonLabel}</a>
+        <a href={route(campaign.buttonHref)} className="inline-block bg-ink text-cream font-body font-bold text-xs tracking-widest px-7 py-4 rounded-full hover:bg-cherry transition-colors w-fit">{campaign.buttonLabel}</a>
       </div>
       </div>
     </section>

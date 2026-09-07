@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { products } from '../../data/products';
+import { route } from '../../utils/routes';
 import CollectionSearch from '../ui/CollectionSearch';
 
 const FILTERS = ['All bundles', 'Skincare sets', 'Body sets', 'Gift sets'];
@@ -66,7 +67,7 @@ export default function Bundles() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-12">
             {bundleProducts.map((product) => (
               <article key={product.id} className="group">
-                <a href={`/products/${product.id}`} className="block">
+                <a href={route(`/products/${product.id}`)} className="block">
                   <div className="relative aspect-[4/5] rounded-brand overflow-hidden bg-[#FFF1D8] soft-shadow">
                     <span className="absolute left-4 top-4 z-10 rounded-full bg-banana px-3 py-1.5 text-[9px] font-bold tracking-widest">BUNDLE & SAVE</span>
                     <img src={product.image} alt={product.name} className="h-full w-full object-cover mix-blend-multiply transition-transform duration-500 group-hover:scale-105" />

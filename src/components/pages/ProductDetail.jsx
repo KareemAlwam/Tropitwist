@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { products } from '../../data/products';
 import { useCart } from '../../context/CartContext';
+import { currentRoute, route } from '../../utils/routes';
 
 export default function ProductDetail() {
-  const productId = window.location.pathname.split('/').filter(Boolean).pop();
+  const productId = currentRoute(window.location.pathname).split('/').filter(Boolean).pop();
   const product = products.find((item) => item.id === productId) || products[0];
   const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
@@ -11,7 +12,7 @@ export default function ProductDetail() {
   return (
     <main>
       <div className="max-w-7xl mx-auto px-4 pt-6">
-        <a href="/skincare" className="text-[10px] font-bold tracking-widest text-ink/55 hover:text-cherry">
+        <a href={route('/skincare')} className="text-[10px] font-bold tracking-widest text-ink/55 hover:text-cherry">
           ← BACK TO SKINCARE
         </a>
       </div>

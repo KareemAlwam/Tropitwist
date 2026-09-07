@@ -1,4 +1,5 @@
 import { siteContent } from '../../data/siteContent';
+import { route } from '../../utils/routes';
 
 export default function Hero() {
   const { hero } = siteContent;
@@ -9,7 +10,7 @@ export default function Hero() {
         <p className="font-body text-[11px] font-bold tracking-[0.2em] text-ink/65 mb-5">{hero.eyebrow}</p>
         <h1 className="font-display font-bold text-cherry text-7xl md:text-[9rem] leading-[0.82] tracking-tight">{hero.title.map((line) => <span key={line} className="block">{line}</span>)}</h1>
         <p className="mt-7 font-body text-ink/80 text-sm md:text-base max-w-sm leading-relaxed">{hero.description}</p>
-        <a href={hero.buttonHref} className="inline-flex mt-8 bg-cherry text-cream font-body font-bold text-xs tracking-widest px-7 py-4 rounded-full hover:bg-ink transition-colors w-fit">{hero.buttonLabel}</a>
+        <a href={route(hero.buttonHref)} className="inline-flex mt-8 bg-cherry text-cream font-body font-bold text-xs tracking-widest px-7 py-4 rounded-full hover:bg-ink transition-colors w-fit">{hero.buttonLabel}</a>
       </div>
       <div className="bg-cream stripe-yellow-tight p-8 md:p-14 flex flex-col justify-end relative overflow-hidden min-h-[420px]">
         <div className="relative z-10 max-w-xs">

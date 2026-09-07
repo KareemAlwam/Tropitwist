@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import Logo from '../ui/Logo';
 import { useCart } from '../../context/CartContext';
+import { route } from '../../utils/routes';
 
 const NAV = [
-  { label: 'SHOP', href: '/' },
-  { label: 'SKINCARE', href: '/skincare' },
-  { label: 'BODY', href: '/body-care' },
-  { label: 'BUNDLES', href: '/bundles' },
-  { label: 'ABOUT', href: '/about' },
+  { label: 'SHOP', href: route('/') },
+  { label: 'SKINCARE', href: route('/skincare') },
+  { label: 'BODY', href: route('/body-care') },
+  { label: 'BUNDLES', href: route('/bundles') },
+  { label: 'ABOUT', href: route('/about') },
 ];
 
 function NavIcon({ name }) {
@@ -44,17 +45,17 @@ export default function Header() {
         <button aria-label="Open menu" onClick={() => setOpen(true)} className="md:hidden p-2 -ml-2 text-ink">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
         </button>
-        <a href="#" aria-label="Tropitwist home" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-10 w-10 md:h-12 md:w-12" /></a>
+        <a href={route('/')} aria-label="Tropitwist home" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-10 w-10 md:h-12 md:w-12" /></a>
         <nav className="hidden md:flex items-center gap-7">
           {NAV.map((item) => <a key={item.label} href={item.href} className="font-body text-[11px] font-semibold text-ink tracking-[0.18em] hover:text-cherry transition-colors">{item.label}</a>)}
         </nav>
         <div className="flex items-center gap-1 md:gap-2">
           {['Search', 'Account', 'Wishlist'].map((label) => (
-            <a key={label} href={label === 'Search' ? '/search' : '#'} aria-label={label} className={`${label === 'Account' || label === 'Wishlist' ? 'hidden md:block ' : ''}p-2 text-ink hover:text-cherry`}>
+            <a key={label} href={label === 'Search' ? route('/search') : '#'} aria-label={label} className={`${label === 'Account' || label === 'Wishlist' ? 'hidden md:block ' : ''}p-2 text-ink hover:text-cherry`}>
               <NavIcon name={label} />
             </a>
           ))}
-          <a href="/cart" aria-label={`Cart, ${itemCount} items`} className="relative p-2 text-ink hover:text-cherry">
+          <a href={route('/cart')} aria-label={`Cart, ${itemCount} items`} className="relative p-2 text-ink hover:text-cherry">
             <NavIcon name="Cart" />
             {itemCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-cherry px-1 text-[9px] font-bold text-cream">{itemCount}</span>}
           </a>

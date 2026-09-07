@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { products } from '../../data/products';
+import { route } from '../../utils/routes';
 import { useCart } from '../../context/CartContext';
 import CollectionSearch from '../ui/CollectionSearch';
 
@@ -102,7 +103,7 @@ export default function Skincare() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-12">
           {filteredProducts.map((product) => (
             <article key={product.id} className="group">
-              <a href={`/products/${product.id}`} className="block">
+              <a href={route(`/products/${product.id}`)} className="block">
                 <div className="relative aspect-[4/5] rounded-brand overflow-hidden bg-[#FFF1D8] soft-shadow">
                   <span className="absolute left-4 top-4 z-10 rounded-full bg-cream px-3 py-1.5 text-[9px] font-bold tracking-widest">
                     {product.bestseller ? 'BESTSELLER' : 'EVERYDAY ESSENTIAL'}

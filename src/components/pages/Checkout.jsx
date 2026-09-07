@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
+import { route } from '../../utils/routes';
 
 const SAVED_ADDRESS_KEY = 'tropitwist-checkout-address';
 
@@ -64,7 +65,7 @@ export default function Checkout() {
       <main className="max-w-3xl mx-auto px-4 py-16 text-center">
         <p className="text-[10px] font-bold tracking-[0.2em] text-cherry mb-3">CHECKOUT</p>
         <h1 className="font-display font-bold text-ink text-6xl leading-none">YOUR BAG IS EMPTY.</h1>
-        <a href="/skincare" className="inline-block mt-8 rounded-full bg-ink text-cream px-7 py-4 text-xs font-bold tracking-widest hover:bg-cherry transition-colors">SHOP SKINCARE</a>
+        <a href={route('/skincare')} className="inline-block mt-8 rounded-full bg-ink text-cream px-7 py-4 text-xs font-bold tracking-widest hover:bg-cherry transition-colors">SHOP SKINCARE</a>
       </main>
     );
   }
@@ -72,7 +73,7 @@ export default function Checkout() {
   return (
     <main className="max-w-7xl mx-auto px-4 py-10 md:py-16">
       <div className="mb-10">
-        <a href="/cart" className="text-[10px] font-bold tracking-widest text-ink/55 hover:text-cherry">← BACK TO CART</a>
+        <a href={route('/cart')} className="text-[10px] font-bold tracking-widest text-ink/55 hover:text-cherry">← BACK TO CART</a>
         <p className="text-[10px] font-bold tracking-[0.2em] text-cherry mt-7 mb-3">TROPITWIST CHECKOUT</p>
         <h1 className="font-display font-bold text-ink text-6xl md:text-8xl leading-[0.82]">READY TO<br /><span className="text-cherry">GLOW.</span></h1>
       </div>

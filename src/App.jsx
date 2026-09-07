@@ -13,16 +13,18 @@ import Bundles from './components/pages/Bundles';
 import About from './components/pages/About';
 import Search from './components/pages/Search';
 import { CartProvider } from './context/CartContext';
+import { currentRoute } from './utils/routes';
 
 export default function App() {
-  const isSkincarePage = window.location.pathname === '/skincare';
-  const isProductPage = window.location.pathname.startsWith('/products/');
-  const isCartPage = window.location.pathname === '/cart';
-  const isCheckoutPage = window.location.pathname === '/checkout';
-  const isBodyCarePage = window.location.pathname === '/body-care';
-  const isBundlesPage = window.location.pathname === '/bundles';
-  const isAboutPage = window.location.pathname === '/about';
-  const isSearchPage = window.location.pathname === '/search';
+  const pathname = currentRoute(window.location.pathname);
+  const isSkincarePage = pathname === '/skincare';
+  const isProductPage = pathname.startsWith('/products/');
+  const isCartPage = pathname === '/cart';
+  const isCheckoutPage = pathname === '/checkout';
+  const isBodyCarePage = pathname === '/body-care';
+  const isBundlesPage = pathname === '/bundles';
+  const isAboutPage = pathname === '/about';
+  const isSearchPage = pathname === '/search';
 
   return (
     <CartProvider>
