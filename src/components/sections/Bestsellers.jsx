@@ -15,7 +15,7 @@ export default function Bestsellers() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
           {products.filter((product) => product.featured !== false).map((product) => (
-            <article key={product.id} className="group">
+            <article key={product.id} className="group motion-rise" style={{ animationDelay: `${(products.indexOf(product) + 1) * 100}ms` }}>
               <div className="bg-[#FFF1D8] rounded-brand aspect-[4/5] p-5 relative overflow-hidden mb-4 soft-shadow">
                 {product.bestseller && (
                   <span className="absolute top-5 left-5 bg-cherry text-cream rounded-full px-3 py-1 text-[9px] font-bold tracking-widest">BESTSELLER</span>
@@ -38,7 +38,7 @@ export default function Bestsellers() {
                 </span>
               </div>
               <p className="mt-2 text-xs text-ink/50">Daily glow essential</p>
-              <button onClick={() => addToCart(product.id)} className="mt-4 w-full border border-ink/20 text-ink font-body font-bold text-[10px] tracking-widest py-3 rounded-full hover:bg-cherry hover:border-cherry hover:text-cream transition-colors">ADD TO CART</button>
+              <button onClick={() => addToCart(product.id)} className="mt-4 w-full border border-ink/20 text-ink font-body font-bold text-[10px] tracking-widest py-3 rounded-full hover:bg-cherry hover:border-cherry hover:text-cream hover:-translate-y-1 transition-all duration-300">ADD TO CART</button>
             </article>
           ))}
         </div>

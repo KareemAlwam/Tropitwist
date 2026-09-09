@@ -32,6 +32,47 @@ body {
   box-shadow: 0 18px 50px rgba(35, 31, 32, 0.08);
 }
 
+.motion-rise {
+  animation: motion-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.motion-float {
+  animation: motion-float 6s ease-in-out infinite;
+}
+
+.motion-drift {
+  animation: motion-drift 18s linear infinite;
+}
+
+.motion-reveal {
+  animation: motion-reveal 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes motion-rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motion-reveal {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+
+@keyframes motion-float {
+  0%, 100% { transform: translateY(-50%) rotate(-3deg); }
+  50% { transform: translateY(calc(-50% - 12px)) rotate(3deg); }
+}
+
+@keyframes motion-drift {
+  from { background-position: 0 0; }
+  to { background-position: 120px 0; }
+}
+
+.motion-delay-1 { animation-delay: 100ms; }
+.motion-delay-2 { animation-delay: 200ms; }
+.motion-delay-3 { animation-delay: 300ms; }
+.motion-delay-4 { animation-delay: 400ms; }
+
 .checkout-input {
   display: block;
   width: 100%;
@@ -49,5 +90,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
 }
