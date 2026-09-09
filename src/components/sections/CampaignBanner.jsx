@@ -6,7 +6,7 @@ export default function CampaignBanner() {
   return (
     <section className="max-w-7xl mx-auto px-4 pb-16 md:pb-24">
       <div className="grid md:grid-cols-2 overflow-hidden rounded-brand">
-      <div className="stripe-yellow-tight p-8 md:p-16 flex flex-col justify-end min-h-[430px] relative overflow-hidden motion-drift">
+      <div className="stripe-motion p-8 md:p-16 flex flex-col justify-end min-h-[430px] relative overflow-hidden">
         <div className="relative z-10 motion-rise">
           <p className="font-body text-[10px] font-bold tracking-[0.2em] text-ink/70 mb-4">{campaign.eyebrow}</p>
           <h2 className="font-display font-bold text-cherry text-6xl md:text-8xl leading-[0.82] tracking-tight">{campaign.title.map((line) => <span key={line} className="block">{line}</span>)}</h2>

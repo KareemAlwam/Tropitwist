@@ -13,7 +13,7 @@ export default function Hero() {
         <p className="mt-7 font-body text-ink/80 text-sm md:text-base max-w-sm leading-relaxed motion-rise motion-delay-2">{hero.description}</p>
         <a href={route(hero.buttonHref)} className="inline-flex mt-8 bg-cherry text-cream font-body font-bold text-xs tracking-widest px-7 py-4 rounded-full hover:bg-ink hover:-translate-y-1 transition-all duration-300 w-fit motion-rise motion-delay-3">{hero.buttonLabel}</a>
       </div>
-      <div className="bg-cream stripe-yellow-tight p-8 md:p-14 flex flex-col justify-end relative overflow-hidden min-h-[420px] motion-drift">
+      <div className="stripe-motion p-8 md:p-14 flex flex-col justify-end relative overflow-hidden min-h-[420px]">
         <div className="relative z-10 max-w-xs motion-rise motion-delay-2">
           <span className="inline-block bg-cream px-3 py-2 text-[10px] font-bold tracking-widest mb-4">{hero.motif}</span>
           <h2 className="font-display font-bold text-cherry text-5xl md:text-7xl leading-[0.85] tracking-tight">{hero.panelTitle.map((line) => <span key={line} className="block">{line}</span>)}</h2>

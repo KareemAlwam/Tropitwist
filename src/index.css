@@ -40,8 +40,18 @@ body {
   animation: motion-float 6s ease-in-out infinite;
 }
 
-.motion-drift {
-  animation: motion-drift 18s linear infinite;
+.stripe-motion {
+  isolation: isolate;
+  background: #FFF8EE;
+}
+
+.stripe-motion::before {
+  content: "";
+  position: absolute;
+  inset: 0 -120px;
+  z-index: -1;
+  background-image: repeating-linear-gradient(90deg, #F4C430 0 30px, #FFF8EE 30px 60px);
+  animation: stripe-slide 18s linear infinite;
 }
 
 .motion-reveal {
@@ -63,9 +73,9 @@ body {
   50% { transform: translateY(calc(-50% - 12px)) rotate(3deg); }
 }
 
-@keyframes motion-drift {
-  from { background-position: 0 0; }
-  to { background-position: 120px 0; }
+@keyframes stripe-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(120px); }
 }
 
 .motion-delay-1 { animation-delay: 100ms; }
