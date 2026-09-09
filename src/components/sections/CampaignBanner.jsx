@@ -11,7 +11,7 @@ export default function CampaignBanner() {
           <p className="font-body text-[10px] font-bold tracking-[0.2em] text-ink/70 mb-4">{campaign.eyebrow}</p>
           <h2 className="font-display font-bold text-cherry text-6xl md:text-8xl leading-[0.82] tracking-tight">{campaign.title.map((line) => <span key={line} className="block">{line}</span>)}</h2>
         </div>
-        <div className="absolute top-1/2 right-8 -translate-y-1/2 w-44 md:w-56 motion-float">
+        <div className="absolute top-1/2 right-8 w-44 md:w-56 motion-product-float">
           <img
             src={campaign.image}
             alt="Tropitwist product"

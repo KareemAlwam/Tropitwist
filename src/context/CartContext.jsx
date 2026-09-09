@@ -1,23 +1,20 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { products } from '../data/products';
+import { readStorage, writeStorage } from '../services/storage';
 
 const STORAGE_KEY = 'tropitwist-cart';
 const CartContext = createContext(null);
 
 function readStoredCart() {
-  try {
-    const value = window.localStorage.getItem(STORAGE_KEY);
-    return value ? JSON.parse(value) : [];
-  } catch {
-    return [];
-  }
+  return readStorage(STORAGE_KEY, []);
 }
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(readStoredCart);
+  const [lastAddedItem, setLastAddedItem] = useState(null);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+    writeStorage(STORAGE_KEY, cart);
   }, [cart]);
 
   const items = useMemo(
@@ -35,7 +32,13 @@ export function CartProvider({ children }) {
     items,
     itemCount: items.reduce((total, item) => total + item.quantity, 0),
     subtotal: items.reduce((total, item) => total + item.product.price * item.quantity, 0),
+    lastAddedItem,
+    clearLastAddedItem: () => setLastAddedItem(null),
     addToCart: (productId, quantity = 1) => {
+      const product = products.find((item) => item.id === productId);
+      if (product) {
+        setLastAddedItem({ product, quantity, addedAt: Date.now() });
+      }
       setCart((current) => {
         const existing = current.find((item) => item.productId === productId);
         if (existing) {
@@ -58,7 +61,7 @@ export function CartProvider({ children }) {
     removeFromCart: (productId) => {
       setCart((current) => current.filter((item) => item.productId !== productId));
     },
-  }), [items]);
+  }), [items, lastAddedItem]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

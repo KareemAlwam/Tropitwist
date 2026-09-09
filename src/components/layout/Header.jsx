@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import Logo from '../ui/Logo';
 import { useCart } from '../../context/CartContext';
-import { route } from '../../utils/routes';
+import { currentRoute, route } from '../../utils/routes';
 
 const NAV = [
-  { label: 'SHOP', href: route('/') },
+  { label: 'ALL PRODUCTS', href: route('/search'), match: '/search' },
   { label: 'SKINCARE', href: route('/skincare') },
   { label: 'BODY', href: route('/body-care') },
   { label: 'BUNDLES', href: route('/bundles') },
@@ -39,6 +39,15 @@ function NavIcon({ name }) {
 export default function Header() {
   const [open, setOpen] = useState(false);
   const { itemCount } = useCart();
+  const pathname = currentRoute(window.location.pathname);
+  const utilityLinks = [
+    { label: 'Search', href: route('/search') },
+    { label: 'Account', href: route('/account') },
+    { label: 'Wishlist', href: route('/wishlist') },
+  ];
+
+  const isActive = (item) => pathname === (item.match || currentRoute(new URL(item.href, window.location.origin).pathname));
+
   return (
     <header className="sticky top-0 z-40 bg-cream/95 backdrop-blur border-b border-ink/10">
       <div className="max-w-7xl mx-auto px-4 h-16 md:h-20 flex items-center justify-between">
@@ -47,12 +56,21 @@ export default function Header() {
         </button>
         <a href={route('/')} aria-label="Tropitwist home" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-10 w-10 md:h-12 md:w-12" /></a>
         <nav className="hidden md:flex items-center gap-7">
-          {NAV.map((item) => <a key={item.label} href={item.href} className="font-body text-[11px] font-semibold text-ink tracking-[0.18em] hover:text-cherry transition-colors">{item.label}</a>)}
+          {NAV.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              aria-current={isActive(item) ? 'page' : undefined}
+              className={`font-body text-[11px] font-semibold tracking-[0.18em] transition-colors hover:text-cherry ${isActive(item) ? 'text-cherry' : 'text-ink'}`}
+            >
+              {item.label}
+            </a>
+          ))}
         </nav>
         <div className="flex items-center gap-1 md:gap-2">
-          {['Search', 'Account', 'Wishlist'].map((label) => (
-            <a key={label} href={label === 'Search' ? route('/search') : '#'} aria-label={label} className={`${label === 'Account' || label === 'Wishlist' ? 'hidden md:block ' : ''}p-2 text-ink hover:text-cherry`}>
-              <NavIcon name={label} />
+          {utilityLinks.map((item) => (
+            <a key={item.label} href={item.href} aria-label={item.label} className={`${item.label === 'Account' || item.label === 'Wishlist' ? 'hidden md:block ' : ''}p-2 text-ink hover:text-cherry`}>
+              <NavIcon name={item.label} />
             </a>
           ))}
           <a href={route('/cart')} aria-label={`Cart, ${itemCount} items`} className="relative p-2 text-ink hover:text-cherry">
@@ -65,7 +83,23 @@ export default function Header() {
         <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
         <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85%] bg-cream p-6">
           <div className="flex items-center justify-between mb-8"><Logo className="h-10 w-10" /><button aria-label="Close menu" onClick={() => setOpen(false)} className="p-2 text-ink text-2xl">×</button></div>
-          <nav className="flex flex-col gap-1">{NAV.map((item) => <a key={item.label} href={item.href} className="font-display font-black text-3xl text-ink py-3 border-b-2 border-cherry/20">{item.label}</a>)}</nav>
+          <nav className="flex flex-col gap-1">
+            {NAV.map((item) => (
+              <a key={item.label} href={item.href} className={`font-display font-black text-3xl py-3 border-b-2 border-cherry/20 ${isActive(item) ? 'text-cherry' : 'text-ink'}`}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            {utilityLinks.map((item) => (
+              <a key={item.label} href={item.href} className="rounded-full border border-ink/15 px-4 py-3 text-center text-[10px] font-bold tracking-widest text-ink hover:border-cherry hover:text-cherry">
+                {item.label.toUpperCase()}
+              </a>
+            ))}
+            <a href={route('/cart')} className="rounded-full bg-ink px-4 py-3 text-center text-[10px] font-bold tracking-widest text-cream hover:bg-cherry">
+              BAG ({itemCount})
+            </a>
+          </div>
         </div>
       </div>}
     </header>

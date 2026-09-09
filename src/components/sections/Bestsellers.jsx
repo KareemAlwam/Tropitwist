@@ -1,5 +1,6 @@
 import { products } from '../../data/products';
 import { useCart } from '../../context/CartContext';
+import { route } from '../../utils/routes';
 
 export default function Bestsellers() {
   const { addToCart } = useCart();
@@ -11,25 +12,25 @@ export default function Bestsellers() {
             <p className="font-body text-[10px] font-bold tracking-[0.2em] text-cherry mb-2">SHOP THE ROUTINE</p>
             <h2 className="font-display font-bold text-ink text-5xl md:text-7xl tracking-tight">BESTSELLERS</h2>
           </div>
-          <a href="#" className="hidden md:inline font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors">VIEW ALL PRODUCTS →</a>
+          <a href={route('/search')} className="hidden md:inline font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors">VIEW ALL PRODUCTS →</a>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
           {products.filter((product) => product.featured !== false).map((product) => (
             <article key={product.id} className="group motion-rise" style={{ animationDelay: `${(products.indexOf(product) + 1) * 100}ms` }}>
-              <div className="bg-[#FFF1D8] rounded-brand aspect-[4/5] p-5 relative overflow-hidden mb-4 soft-shadow">
+              <a href={route(`/products/${product.id}`)} className="block product-tile rounded-brand aspect-[4/5] relative overflow-hidden mb-4 soft-shadow">
                 {product.bestseller && (
                   <span className="absolute top-5 left-5 bg-cherry text-cream rounded-full px-3 py-1 text-[9px] font-bold tracking-widest">BESTSELLER</span>
                 )}
-                <div className="absolute inset-8 top-14 flex items-center justify-center">
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
                   <img
                     src={product.image}
                     alt={product.name}
-                    className="h-full w-full object-contain mix-blend-multiply drop-shadow-xl transition-transform duration-500 group-hover:scale-105"
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
-              </div>
+              </a>
               <div className="flex items-center justify-between">
-                <h4 className="font-body font-semibold text-ink text-sm">{product.name}</h4>
+                <h4 className="font-body font-semibold text-ink text-sm"><a href={route(`/products/${product.id}`)} className="hover:text-cherry transition-colors">{product.name}</a></h4>
                 <span className="text-right">
                   <span className="block text-ink font-bold text-sm">LE {product.price}</span>
                   {product.compareAtPrice > product.price && (
@@ -42,7 +43,7 @@ export default function Bestsellers() {
             </article>
           ))}
         </div>
-        <div className="mt-10 text-center md:hidden"><a href="#" className="inline-block font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors border-b border-cherry pb-1">VIEW ALL PRODUCTS</a></div>
+        <div className="mt-10 text-center md:hidden"><a href={route('/search')} className="inline-block font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors border-b border-cherry pb-1">VIEW ALL PRODUCTS</a></div>
       </div>
     </section>
   );

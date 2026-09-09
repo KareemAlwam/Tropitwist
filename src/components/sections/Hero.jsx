@@ -7,7 +7,7 @@ export default function Hero() {
     <section className="max-w-7xl mx-auto px-4 pt-5 pb-12 md:pt-8 md:pb-20">
       <div className="grid md:grid-cols-[1.05fr_.95fr] min-h-[560px] overflow-hidden rounded-brand">
       <div className="bg-banana p-8 md:p-16 flex flex-col justify-center relative overflow-hidden">
-        <div className="absolute -right-14 -top-14 h-36 w-36 rounded-full border-[18px] border-cherry/10 motion-float" />
+        <div className="absolute -right-14 -top-14 h-36 w-36 rounded-full border-[18px] border-cherry/10 motion-orbit" />
         <p className="font-body text-[11px] font-bold tracking-[0.2em] text-ink/65 mb-5 motion-rise">{hero.eyebrow}</p>
         <h1 className="font-display font-bold text-cherry text-7xl md:text-[9rem] leading-[0.82] tracking-tight motion-reveal motion-delay-1">{hero.title.map((line) => <span key={line} className="block">{line}</span>)}</h1>
         <p className="mt-7 font-body text-ink/80 text-sm md:text-base max-w-sm leading-relaxed motion-rise motion-delay-2">{hero.description}</p>
@@ -18,7 +18,7 @@ export default function Hero() {
           <span className="inline-block bg-cream px-3 py-2 text-[10px] font-bold tracking-widest mb-4">{hero.motif}</span>
           <h2 className="font-display font-bold text-cherry text-5xl md:text-7xl leading-[0.85] tracking-tight">{hero.panelTitle.map((line) => <span key={line} className="block">{line}</span>)}</h2>
         </div>
-        <div className="absolute top-1/2 right-8 -translate-y-1/2 w-56 md:w-72 motion-float">
+        <div className="absolute top-1/2 right-8 w-56 md:w-72 motion-product-float">
           <img
             src={hero.image}
             alt="Tropitwist product"

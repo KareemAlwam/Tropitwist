@@ -32,7 +32,7 @@ jobs:
       - name: Add SPA fallback
         run: |
           cp dist/index.html dist/404.html
-          for route in skincare body-care bundles about search cart checkout products; do
+          for route in skincare body-care bundles about search cart checkout account wishlist admin products; do
             mkdir -p "dist/$route"
             cp dist/index.html "dist/$route/index.html"
           done
