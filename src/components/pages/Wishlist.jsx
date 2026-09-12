@@ -1,25 +1,21 @@
-import { useMemo } from 'react';
-import { products } from '../../data/products';
+import { useEffect, useState } from 'react';
 import { route } from '../../utils/routes';
 import { useCart } from '../../context/CartContext';
-import { useLocalStorage } from '../../hooks/useLocalStorage';
-
-const WISHLIST_KEY = 'tropitwist-wishlist';
+import { api, getSession } from '../../services/api';
 
 export default function Wishlist() {
   const { addToCart } = useCart();
-  const [saved, setSaved] = useLocalStorage(WISHLIST_KEY, []);
-  const items = useMemo(() => products.filter((product) => saved.includes(product.id)), [saved]);
-  function remove(id) {
-    setSaved((current) => current.filter((item) => item !== id));
-  }
+  const [items, setItems] = useState([]);
+  const [status, setStatus] = useState('loading');
+  useEffect(() => { if (!getSession()) { setStatus('signed-out'); return; } api('/wishlist').then((data) => { setItems(data); setStatus('ready'); }).catch(() => setStatus('error')); }, []);
+  async function remove(id) { try { await api(`/wishlist/items/${id}`, { method: 'DELETE' }); setItems((current) => current.filter((item) => item.id !== id)); } catch { setStatus('error'); } }
   return (
     <main className="max-w-7xl mx-auto px-4 py-12 md:py-20">
       <div className="page-spotlight -mx-4 border-b border-ink/10 px-4 pb-10 md:pb-14">
         <p className="motion-rise text-[10px] font-bold tracking-[0.22em] text-cherry mb-4">SAVED FOR LATER</p>
         <h1 className="motion-reveal font-display font-bold text-ink text-6xl md:text-8xl leading-[0.82]">YOUR<br /><span className="text-cherry">WISHLIST.</span></h1>
       </div>
-      {!items.length ? (
+      {status === 'signed-out' ? <div className="card-enter mt-12 rounded-brand bg-banana p-10 text-center"><h2 className="font-display font-bold text-5xl">SIGN IN TO SAVE.</h2><a href={route('/account')} className="inline-block mt-7 rounded-full bg-ink text-cream px-7 py-4 text-xs font-bold tracking-widest">SIGN IN</a></div> : status === 'loading' ? <p className="mt-12 text-center text-sm text-ink/60">Loading wishlist...</p> : !items.length ? (
         <div className="card-enter mt-12 rounded-brand bg-banana p-10 text-center">
           <h2 className="font-display font-bold text-5xl">NOTHING SAVED YET.</h2>
           <p className="mt-3 text-sm text-ink/65">Your favorite essentials will live here.</p>

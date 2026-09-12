@@ -2,50 +2,54 @@ import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { route } from '../../utils/routes';
 import { calculateOrderTotals } from '../../utils/order';
-import { removeStorage, readStorage, writeStorage } from '../../services/storage';
 import { validateCheckout, withoutPaymentDetails } from './validation';
-
-const SAVED_ADDRESS_KEY = 'tropitwist-checkout-address';
+import { api, getSession } from '../../services/api';
 
 export default function Checkout() {
-  const { items, subtotal } = useCart();
+  const { items, subtotal, clearCart } = useCart();
   const { shipping, total } = calculateOrderTotals(subtotal);
   const [paymentMethod, setPaymentMethod] = useState('cash-on-delivery');
   const [rememberAddress, setRememberAddress] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [savedAddress, setSavedAddress] = useState({});
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
   const [formVersion, setFormVersion] = useState(0);
   const [validationError, setValidationError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
-    try {
-      const stored = readStorage(SAVED_ADDRESS_KEY, null);
-      if (stored) {
-        setSavedAddress(stored);
+    if (!getSession()) return;
+    api('/addresses').then((addresses) => {
+      setSavedAddresses(addresses);
+      if (addresses[0]) {
+        setSavedAddress(addresses[0]);
+        setSelectedAddressId(addresses[0].id);
         setRememberAddress(true);
         setFormVersion((version) => version + 1);
       }
-    } catch {
-      setSavedAddress({});
-    }
+    }).catch(() => setSavedAddress({}));
   }, []);
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const formValues = Object.fromEntries(formData.entries());
-    const errors = validateCheckout(formValues, paymentMethod);
+    const errors = validateCheckout(formValues, 'cash-on-delivery');
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       setValidationError('Please correct the highlighted fields.');
+      return;
+    }
+    if (!getSession()) {
+      setValidationError('Sign in to place an order.');
       return;
     }
     setValidationError('');
     const customer = withoutPaymentDetails(formValues);
     const orderPayload = {
       customer,
-      paymentMethod,
+      paymentMethod: 'cash-on-delivery',
       items: items.map(({ product, quantity }) => ({
         productId: product.id,
         quantity,
@@ -56,22 +60,17 @@ export default function Checkout() {
       total,
     };
 
-    if (rememberAddress) {
-      writeStorage(SAVED_ADDRESS_KEY, {
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        phone: customer.phone,
-        address: customer.address,
-        city: customer.city,
-        area: customer.area,
-      });
-    } else {
-      removeStorage(SAVED_ADDRESS_KEY);
+    try {
+      if (rememberAddress && !savedAddresses.some((address) => address.address === customer.address && address.city === customer.city && address.area === customer.area)) {
+        await api('/addresses', { method: 'POST', body: JSON.stringify({ label: 'Home', firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone, address: customer.address, city: customer.city, area: customer.area }) });
+      }
+      await api('/orders', { method: 'POST', body: JSON.stringify(orderPayload) });
+      clearCart();
+      setSubmitted(true);
+    } catch (error) {
+      setFieldErrors(error.details || {});
+      setValidationError(error.message);
     }
-
-    // Replace this state update with the checkout API request when the backend is connected.
-    console.info('Checkout payload ready for backend:', orderPayload);
-    setSubmitted(true);
   }
 
   if (!items.length) {
@@ -103,20 +102,25 @@ export default function Checkout() {
                 ['email', 'EMAIL ADDRESS', '', 'sm:col-span-2'],
                 ['phone', 'PHONE NUMBER', savedAddress.phone, 'sm:col-span-2'],
               ].map(([name, label, value, layout]) => (
-                <label key={name} className={`text-xs font-bold tracking-wide ${layout}`}>{label}<input name={name} type={name === 'email' ? 'email' : name === 'phone' ? 'tel' : 'text'} defaultValue={value} aria-invalid={Boolean(fieldErrors[name])} className={`checkout-input ${fieldErrors[name] ? 'border-cherry' : ''}`} />{fieldErrors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors[name]}</span>}</label>
+                <label key={name} className={`text-xs font-bold tracking-wide ${layout}`}>{label}{fieldErrors[name] && <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-full bg-cherry align-middle" />}<input name={name} type={name === 'email' ? 'email' : name === 'phone' ? 'tel' : 'text'} defaultValue={value} aria-invalid={Boolean(fieldErrors[name])} className={`checkout-input ${fieldErrors[name] ? 'border-2 border-cherry' : ''}`} />{fieldErrors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors[name]}</span>}</label>
               ))}
             </div>
           </section>
 
           <section className="card-enter motion-delay-1">
             <h2 className="font-display font-bold text-4xl mb-5">DELIVERY ADDRESS</h2>
+            {savedAddresses.length > 0 && <label className="mb-4 block text-xs font-bold tracking-wide">SAVED ADDRESS
+              <select value={selectedAddressId} onChange={(event) => { const next = savedAddresses.find((address) => address.id === event.target.value); setSelectedAddressId(event.target.value); setSavedAddress(next || {}); setFormVersion((version) => version + 1); }} className="checkout-input mt-2">
+                {savedAddresses.map((address) => <option key={address.id} value={address.id}>{address.label} - {address.address}, {address.area}</option>)}
+              </select>
+            </label>}
             <div key={savedAddress.address || 'new-address'} className="grid sm:grid-cols-2 gap-4">
               {[
                 ['address', 'ADDRESS', savedAddress.address, 'sm:col-span-2'],
                 ['city', 'CITY', savedAddress.city, ''],
                 ['area', 'AREA', savedAddress.area, ''],
               ].map(([name, label, value, layout]) => (
-                <label key={name} className={`text-xs font-bold tracking-wide ${layout}`}>{label}<input name={name} defaultValue={value} aria-invalid={Boolean(fieldErrors[name])} className={`checkout-input ${fieldErrors[name] ? 'border-cherry' : ''}`} />{fieldErrors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors[name]}</span>}</label>
+                <label key={name} className={`text-xs font-bold tracking-wide ${layout}`}>{label}{fieldErrors[name] && <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-full bg-cherry align-middle" />}<input name={name} defaultValue={value} aria-invalid={Boolean(fieldErrors[name])} className={`checkout-input ${fieldErrors[name] ? 'border-2 border-cherry' : ''}`} />{fieldErrors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors[name]}</span>}</label>
               ))}
               <label className="text-xs font-bold tracking-wide sm:col-span-2">DELIVERY NOTES <span className="font-normal text-ink/45">(OPTIONAL)</span><textarea name="notes" rows="3" className="checkout-input resize-none" /></label>
             </div>
@@ -133,10 +137,10 @@ export default function Checkout() {
                 <input type="radio" name="payment" checked={paymentMethod === 'cash-on-delivery'} onChange={() => setPaymentMethod('cash-on-delivery')} value="cash-on-delivery" />
                 <span className="min-w-0"><strong className="block">Cash on delivery</strong><small className="text-ink/55">Pay when your order arrives.</small></span>
               </label>
-              <label className={`flex min-w-0 items-center gap-3 rounded-brand border p-4 text-sm cursor-pointer ${paymentMethod === 'card' ? 'border-cherry bg-cherry/5' : 'border-ink/15'}`}>
-                <input type="radio" name="payment" checked={paymentMethod === 'card'} onChange={() => setPaymentMethod('card')} value="card" />
-                <span className="min-w-0"><strong className="block">Visa / Mastercard</strong><small className="text-ink/55">Secure card payment at checkout.</small></span>
-              </label>
+              <div className="flex min-w-0 items-center gap-3 rounded-brand border border-ink/10 p-4 text-sm opacity-60">
+                <input type="radio" name="payment" disabled />
+                <span className="min-w-0"><strong className="block">Visa / Mastercard</strong><small className="text-ink/55">Available after payment-provider integration.</small></span>
+              </div>
             </div>
             {paymentMethod === 'card' && (
               <div className="grid sm:grid-cols-2 gap-4 mt-4 rounded-brand bg-ink/5 p-4">

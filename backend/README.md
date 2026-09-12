@@ -14,9 +14,10 @@ npm run dev
 ```
 
 The API listens on `http://localhost:4000`. With `DATABASE_URL` configured it
-persists its state in PostgreSQL; without it, data is held in memory and resets
-when the process restarts. Development also falls back to memory if PostgreSQL is
-offline; production fails startup instead. Set `ADMIN_API_KEY` and send
+persists products, accounts, carts, orders, addresses, wishlists, and newsletter
+subscriptions in PostgreSQL tables. Without it, data is held in memory and resets
+when the process restarts. A configured but unavailable PostgreSQL server prevents
+startup to avoid accepting orders that would be lost. Set `ADMIN_API_KEY` and send
 it as `X-Admin-Key` to protect admin routes. When the key is omitted, admin routes
 remain open for the local storefront preview.
 
@@ -38,9 +39,10 @@ compatibility prefix for the current frontend admin screen.
 - `PATCH /admin/orders/:id`, `GET /admin/customers`
 
 Authenticated requests use `Authorization: Bearer <token>`. Guest carts use a
-stable random `X-Cart-Id` header. Prices, delivery charges, and availability are
-always recalculated by the server. Raw card details are never accepted; only cash
-on delivery is enabled until a hosted payment-provider flow is configured.
+stable random `X-Cart-Id` header. Checkout quotes and order creation require an
+authenticated account. Prices, delivery charges, and availability are always
+recalculated by the server. Raw card details are never accepted; only cash on
+delivery is enabled until a hosted payment-provider flow is configured.
 
 Errors consistently use:
 
