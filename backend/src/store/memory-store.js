@@ -28,7 +28,7 @@ export class MemoryStore {
   findUser(id) { return this.users.find((user) => user.id === id); }
   createUser(input) {
     const now = new Date().toISOString();
-    const user = { id: this.newId('usr'), ...input, email: input.email.toLowerCase(), role: 'customer', createdAt: now, updatedAt: now };
+    const user = { id: this.newId('usr'), ...input, email: input.email.toLowerCase(), role: input.role || 'customer', createdAt: now, updatedAt: now };
     this.users.push(user);
     return this.publicUser(user);
   }

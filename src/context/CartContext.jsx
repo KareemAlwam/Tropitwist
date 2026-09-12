@@ -61,6 +61,7 @@ export function CartProvider({ children }) {
     removeFromCart: (productId) => {
       setCart((current) => current.filter((item) => item.productId !== productId));
     },
+    clearCart: () => setCart([]),
   }), [items, lastAddedItem]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

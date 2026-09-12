@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { route } from '../../utils/routes';
+import { api, clearSession, getSession, setSession } from '../../services/api';
 
 const initialForm = { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' };
 
 export default function Account() {
   const [mode, setMode] = useState('login');
-  const [isDashboard, setIsDashboard] = useState(false);
+  const [isDashboard, setIsDashboard] = useState(() => Boolean(getSession()));
   const [form, setForm] = useState(initialForm);
-  const [accountProfile, setAccountProfile] = useState({ firstName: '', lastName: '', email: '' });
+  const [accountProfile, setAccountProfile] = useState(() => getSession()?.user || { firstName: '', lastName: '', email: '' });
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState('');
 
@@ -25,7 +26,7 @@ export default function Account() {
     setStatus('');
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const nextErrors = {};
     if (mode === 'register' && !form.firstName.trim()) nextErrors.firstName = 'Tell us your first name.';
@@ -36,20 +37,21 @@ export default function Account() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    const profile = {
-      firstName: mode === 'register' ? form.firstName.trim() : '',
-      lastName: mode === 'register' ? form.lastName.trim() : '',
-      email: form.email.trim(),
-    };
-    console.info(`Account ${mode} request ready for backend:`, { ...profile, password: '[redacted]' });
-    setAccountProfile(profile);
-    setIsDashboard(true);
+    try {
+      const payload = mode === 'register'
+        ? { firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim(), password: form.password }
+        : { email: form.email.trim(), password: form.password };
+      const data = await api(`/auth/${mode === 'register' ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify(payload) });
+      setSession({ token: data.token, user: data.user, expiresAt: data.expiresAt });
+      setAccountProfile(data.user);
+      setIsDashboard(true);
+    } catch (error) { setStatus(error.message); }
   }
 
   const field = (name, label, type = 'text', className = '') => (
     <label className={`text-xs font-bold tracking-wide ${className}`}>
-      {label}
-      <input name={name} type={type} value={form[name]} onChange={updateField} className={`checkout-input bg-cream ${errors[name] ? 'border-cherry' : ''}`} />
+      {label}{errors[name] && <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-full bg-cherry align-middle" />}
+      <input name={name} type={type} value={form[name]} onChange={updateField} aria-invalid={Boolean(errors[name])} className={`checkout-input bg-cream ${errors[name] ? 'border-2 border-cherry' : ''}`} />
       {errors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{errors[name]}</span>}
     </label>
   );
@@ -58,6 +60,7 @@ export default function Account() {
     <main className="max-w-6xl mx-auto px-4 py-12 md:py-20">
       {isDashboard ? (
         <Dashboard profile={accountProfile} onProfileUpdate={setAccountProfile} onSignOut={() => {
+          clearSession();
           setIsDashboard(false);
           setForm(initialForm);
           setStatus('');
@@ -95,8 +98,17 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
   const [draftProfile, setDraftProfile] = useState(profile);
   const [profileErrors, setProfileErrors] = useState({});
   const [profileStatus, setProfileStatus] = useState('');
+  const [orders, setOrders] = useState([]);
+  const [ordersStatus, setOrdersStatus] = useState('loading');
+  useEffect(() => {
+    let active = true;
+    api('/orders').then((data) => {
+      if (active) { setOrders(data); setOrdersStatus('ready'); }
+    }).catch(() => { if (active) setOrdersStatus('error'); });
+    return () => { active = false; };
+  }, []);
   const dashboardCards = [
-    { label: 'Orders', value: '0', detail: 'No purchases yet' },
+    { label: 'Orders', value: String(orders.length), detail: orders.length ? 'Completed purchases' : 'No purchases yet' },
     { label: 'Saved addresses', value: '0', detail: 'Add one at checkout' },
     { label: 'Wishlist', value: '0', detail: 'Saved products' },
   ];
@@ -104,6 +116,7 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
     { label: 'Continue shopping', href: '/search' },
     { label: 'View wishlist', href: '/wishlist' },
     { label: 'Go to cart', href: '/cart' },
+    ...(profile.role === 'admin' ? [{ label: 'Open admin dashboard', href: '/admin' }] : []),
   ];
   const displayName = profile.firstName.trim() || profile.lastName.trim();
   const fullName = `${profile.firstName} ${profile.lastName}`.trim();
@@ -116,7 +129,7 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
     setProfileStatus('');
   }
 
-  function saveProfile(event) {
+  async function saveProfile(event) {
     event.preventDefault();
     const nextErrors = {};
     if (!draftProfile.firstName.trim()) nextErrors.firstName = 'Tell us your first name.';
@@ -129,10 +142,14 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
       lastName: draftProfile.lastName.trim(),
       email: draftProfile.email.trim(),
     };
-    console.info('Customer profile update ready for backend:', profilePayload);
-    onProfileUpdate(profilePayload);
-    setProfileStatus('Your profile changes are ready for the account service.');
-    setIsEditingProfile(false);
+    try {
+      const updatedProfile = await api('/me', { method: 'PATCH', body: JSON.stringify(profilePayload) });
+      onProfileUpdate(updatedProfile);
+      const session = getSession();
+      if (session) setSession({ ...session, user: updatedProfile });
+      setProfileStatus('Your profile has been updated.');
+      setIsEditingProfile(false);
+    } catch (error) { setProfileStatus(error.message); }
   }
 
   const profileField = (name, label, type = 'text', readOnly = false) => (
@@ -162,9 +179,12 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
             </h1>
             <p className="mt-3 text-sm text-ink/65">{profile.email}</p>
           </div>
-          <button type="button" onClick={onSignOut} className="self-start rounded-full border border-ink/20 px-5 py-3 text-[10px] font-bold tracking-widest transition-colors hover:border-cherry hover:text-cherry sm:self-auto">
-            SIGN OUT
-          </button>
+          <div className="flex flex-wrap gap-3">
+            {profile.role === 'admin' && <a href={route('/admin')} className="self-start rounded-full bg-cherry px-5 py-3 text-[10px] font-bold tracking-widest text-cream transition-colors hover:bg-ink">ADMIN DASHBOARD</a>}
+            <button type="button" onClick={onSignOut} className="self-start rounded-full border border-ink/20 px-5 py-3 text-[10px] font-bold tracking-widest transition-colors hover:border-cherry hover:text-cherry sm:self-auto">
+              SIGN OUT
+            </button>
+          </div>
         </div>
       </div>
 
@@ -188,9 +208,11 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
               <p className="text-[10px] font-bold tracking-[0.2em] text-cherry">ORDERS</p>
               <h2 className="mt-2 font-display text-3xl font-bold">Recent activity</h2>
             </div>
-            <span className="text-[10px] font-bold tracking-widest text-ink/55">0 ORDERS</span>
+            <span className="text-[10px] font-bold tracking-widest text-ink/55">{orders.length} ORDERS</span>
           </div>
-          <div className="py-10 text-center">
+          {ordersStatus === 'loading' && <p className="py-10 text-center text-sm text-ink/60">Loading orders...</p>}
+          {ordersStatus === 'error' && <p className="py-10 text-center text-sm text-cherry">Orders could not be loaded.</p>}
+          {ordersStatus === 'ready' && orders.length === 0 && <div className="py-10 text-center">
             <p className="text-sm font-semibold text-ink">No orders yet.</p>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink/60">
               Completed purchases, delivery updates, and order totals will appear here after checkout is connected.
@@ -198,7 +220,10 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
             <a href={route('/search')} className="mt-6 inline-block rounded-full bg-ink px-6 py-3 text-[10px] font-bold tracking-widest text-cream transition-colors hover:bg-cherry">
               BROWSE PRODUCTS
             </a>
-          </div>
+          </div>}
+          {ordersStatus === 'ready' && orders.length > 0 && <div className="divide-y divide-ink/10">
+            {orders.slice().reverse().slice(0, 5).map((order) => <article key={order.id} className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"><div><p className="font-semibold">{order.id}</p><p className="mt-1 text-xs text-ink/55">{new Date(order.createdAt).toLocaleDateString()}</p></div><div className="flex items-center gap-4"><span className="rounded-full bg-banana/50 px-3 py-1 text-xs capitalize">{order.status}</span><span className="font-bold">LE {order.total}</span></div></article>)}
+          </div>}
         </section>
 
         <div className="grid gap-6">
@@ -262,6 +287,55 @@ function Dashboard({ profile, onProfileUpdate, onSignOut }) {
           </section>
         </div>
       </div>
+      <AddressBook profile={profile} />
     </section>
   );
+}
+
+function AddressBook({ profile }) {
+  const [addresses, setAddresses] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [status, setStatus] = useState('');
+
+  const loadAddresses = () => api('/addresses').then(setAddresses).catch(() => setStatus('Addresses could not be loaded.'));
+  useEffect(() => { loadAddresses(); }, []);
+
+  async function addAddress(event) {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    try {
+      await api('/addresses', { method: 'POST', body: JSON.stringify(values) });
+      setShowForm(false);
+      setStatus('Address saved.');
+      loadAddresses();
+    } catch (error) { setStatus(error.message); }
+  }
+
+  async function deleteAddress(id) {
+    try {
+      await api(`/addresses/${id}`, { method: 'DELETE' });
+      setStatus('Address removed.');
+      loadAddresses();
+    } catch (error) { setStatus(error.message); }
+  }
+
+  return <section className="mt-8 rounded-brand border border-ink/10 bg-cream p-6 md:p-8">
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-5">
+      <div><p className="text-[10px] font-bold tracking-[0.2em] text-cherry">ADDRESSES</p><h2 className="mt-2 font-display text-3xl font-bold">Delivery addresses</h2></div>
+      <button type="button" onClick={() => setShowForm((value) => !value)} className="rounded-full bg-ink px-5 py-3 text-[10px] font-bold tracking-widest text-cream hover:bg-cherry">{showForm ? 'CANCEL' : 'ADD ADDRESS'}</button>
+    </div>
+    {status && <p role="status" className="mt-4 text-sm text-ink/65">{status}</p>}
+    {showForm && <form onSubmit={addAddress} className="mt-6 grid gap-4 sm:grid-cols-2">
+      <input name="label" defaultValue="Home" placeholder="LABEL" className="checkout-input" />
+      <input name="phone" placeholder="PHONE NUMBER" required className="checkout-input" />
+      <input name="firstName" defaultValue={profile.firstName} placeholder="FIRST NAME" required className="checkout-input" />
+      <input name="lastName" defaultValue={profile.lastName} placeholder="LAST NAME" required className="checkout-input" />
+      <input name="address" placeholder="ADDRESS" required className="checkout-input sm:col-span-2" />
+      <input name="city" placeholder="CITY" required className="checkout-input" />
+      <input name="area" placeholder="AREA" required className="checkout-input" />
+      <button type="submit" className="w-fit rounded-full bg-cherry px-5 py-3 text-[10px] font-bold tracking-widest text-cream hover:bg-ink">SAVE ADDRESS</button>
+    </form>}
+    <div className="mt-6 grid gap-3 md:grid-cols-2">{addresses.map((address) => <article key={address.id} className="border border-ink/10 p-4 text-sm"><div className="flex justify-between gap-4"><div><p className="font-semibold">{address.label}</p><p className="mt-2">{address.firstName} {address.lastName}</p><p className="text-ink/60">{address.address}, {address.area}, {address.city}</p><p className="mt-1 text-ink/60">{address.phone}</p></div><button type="button" onClick={() => deleteAddress(address.id)} className="self-start text-xs font-bold text-cherry hover:text-ink">REMOVE</button></div></article>)}</div>
+    {!addresses.length && !showForm && <p className="mt-6 text-sm text-ink/60">No saved addresses yet.</p>}
+  </section>;
 }

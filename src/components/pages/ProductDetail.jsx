@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { products } from '../../data/products';
 import { useCart } from '../../context/CartContext';
 import { currentRoute, route } from '../../utils/routes';
+import { api, getSession } from '../../services/api';
 
 const CATEGORY_BACK_LINKS = {
   body: { href: '/body-care', label: 'BACK TO BODY CARE' },
@@ -13,6 +14,7 @@ export default function ProductDetail() {
   const productId = currentRoute(window.location.pathname).split('/').filter(Boolean).pop();
   const product = products.find((item) => item.id === productId);
   const [quantity, setQuantity] = useState(1);
+  const [savedStatus, setSavedStatus] = useState('');
   const { addToCart } = useCart();
 
   if (!product) {
@@ -82,7 +84,9 @@ export default function ProductDetail() {
               <button onClick={() => addToCart(product.id, quantity)} className="min-h-12 flex-1 rounded-full bg-cherry px-4 py-3 text-xs font-bold tracking-widest text-cream hover:bg-ink transition-colors">
                 ADD TO CART · LE {product.price * quantity}
               </button>
+              <button type="button" onClick={async () => { if (!getSession()) { setSavedStatus('Sign in to save products.'); return; } try { await api('/wishlist/items', { method: 'POST', body: JSON.stringify({ productId: product.id }) }); setSavedStatus('Saved to wishlist.'); } catch (error) { setSavedStatus(error.message); } }} className="min-h-12 rounded-full border border-ink/20 px-4 py-3 text-[10px] font-bold tracking-widest hover:border-cherry hover:text-cherry">SAVE</button>
             </div>
+            {savedStatus && <p role="status" className="mt-3 text-sm text-ink/65">{savedStatus}</p>}
             <div className="grid grid-cols-3 gap-2 mt-8 max-w-lg">
               {['Soft finish', 'Daily use', 'Cruelty free'].map((item) => (
                 <div key={item} className="card-enter bg-banana/50 rounded-brand p-3 text-center text-[10px] font-bold tracking-wide">{item}</div>

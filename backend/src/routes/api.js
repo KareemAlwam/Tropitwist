@@ -38,7 +38,7 @@ function requireUser(request, _response, next) {
 }
 
 function requireAdmin(request, _response, next) {
-  if (env.ADMIN_API_KEY && request.get('x-admin-key') !== env.ADMIN_API_KEY) {
+  if (request.user?.role !== 'admin') {
     return next(new ApiError(403, 'FORBIDDEN', 'Admin access is required.'));
   }
   next();
@@ -115,7 +115,8 @@ export function createApiRouter(store) {
     const input = z.object({ firstName: z.string().trim().min(1).max(80), lastName: z.string().trim().min(1).max(80), email, password }).parse(request.body);
     if (store.findUserByEmail(input.email)) throw new ApiError(409, 'EMAIL_IN_USE', 'An account already exists for this email.');
     const { password: rawPassword, ...profile } = input;
-    const user = store.createUser({ ...profile, passwordHash: hashPassword(rawPassword) });
+    const adminEmails = env.ADMIN_EMAILS.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
+    const user = store.createUser({ ...profile, role: adminEmails.includes(profile.email) ? 'admin' : 'customer', passwordHash: hashPassword(rawPassword) });
     const token = createToken();
     const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 86400000).toISOString();
     store.createSession(user.id, token, expiresAt);
@@ -176,22 +177,23 @@ export function createApiRouter(store) {
     store.setCart(owner, filtered); response.status(204).end();
   });
 
-  router.post('/checkout/session', (request, response) => {
+  router.post('/checkout/session', requireUser, (request, response) => {
     const input = z.object({ items: z.array(itemSchema).min(1) }).parse(request.body);
     const lines = validateInventory(store, input.items); const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-    response.json({ data: { items: lines.map(({ product, ...line }) => ({ ...line, name: product.name })), ...calculateTotals(subtotal), paymentMethods: ['cash-on-delivery'] } });
+    response.json({ data: { items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...calculateTotals(subtotal), paymentMethods: ['cash-on-delivery'] } });
   });
 
-  router.post('/orders', (request, response) => {
+  router.post('/orders', requireUser, asyncRoute(async (request, response) => {
     const input = z.object({ customer: customerSchema, paymentMethod: z.enum(['cash-on-delivery']), items: z.array(itemSchema).min(1).max(50) }).parse(request.body);
-    const owner = request.user || request.get('x-cart-id') ? cartOwner(request) : null;
+    const owner = cartOwner(request);
     const lines = validateInventory(store, input.items); const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
     const totals = calculateTotals(subtotal);
     for (const line of lines) line.product.inventory -= line.quantity;
-    const order = store.createOrder({ userId: request.user?.id || null, customer: input.customer, paymentMethod: input.paymentMethod, items: lines.map(({ product, ...line }) => ({ ...line, name: product.name })), ...totals });
-    if (owner) store.setCart(owner, []);
+    const order = store.createOrder({ userId: request.user.id, customer: { ...input.customer, email: request.user.email }, paymentMethod: input.paymentMethod, items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...totals });
+    store.setCart(owner, []);
+    await store.flush?.();
     response.status(201).json({ data: order });
-  });
+  }));
   router.get('/orders', requireUser, (request, response) => response.json({ data: store.listOrders(request.user.id) }));
   router.get('/orders/:id', requireUser, (request, response) => {
     const order = store.findOrder(request.params.id);
@@ -257,7 +259,7 @@ export function adminDashboard(store) {
       { key: 'customers', label: 'Customers', value: store.users.length, change: 'Registered accounts' },
     ],
     orders: store.orders.slice(-10).reverse().map((order) => ({ id: order.id, customer: `${order.customer.firstName} ${order.customer.lastName}`, date: order.createdAt.slice(0, 10), total: `LE ${order.total}`, status: order.status })),
-    products: store.products.map((product) => ({ id: product.id, name: product.name, category: product.category, size: product.size, price: `LE ${product.price}`, status: product.status === 'active' ? 'Active' : 'Draft' })),
+    products: store.products.map((product) => ({ id: product.id, name: product.name, category: product.category, size: product.size, price: `LE ${product.price}`, inventory: product.inventory, status: product.status })),
     customers: store.users.map((user) => ({ id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email })),
     chart: { label: 'STORE ACTIVITY', headline: `${store.orders.length} orders`, values: [0, 0, 0, 0, 0, 0, Math.min(100, store.orders.length * 10)] },
   };
