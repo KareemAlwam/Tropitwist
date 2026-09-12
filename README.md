@@ -52,3 +52,8 @@ the site to GitHub Pages under `/Tropitwist/`, including static fallbacks for al
 current storefront routes.
 
 Cart contents are stored locally in the browser under `tropitwist-cart`.
+
+## Backend
+
+The API lives in `backend/`. See [`backend/README.md`](backend/README.md) for its
+setup, routes, authentication, and test commands.
