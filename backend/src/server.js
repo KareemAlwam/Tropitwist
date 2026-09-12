@@ -4,6 +4,11 @@ import { createStore } from './store/postgres-store.js';
 
 async function main() {
   const store = await createStore(env.DATABASE_URL);
+  await store.expirePendingPaymentOrders?.();
+  const paymentExpiryTimer = setInterval(() => {
+    Promise.resolve(store.expirePendingPaymentOrders?.()).catch((error) => console.error('Unable to release expired payment reservations:', error));
+  }, 5 * 60 * 1000);
+  paymentExpiryTimer.unref();
   const app = createApp({ store });
   const server = app.listen(env.PORT, () => {
     console.info(`Tropitwist API listening on http://localhost:${env.PORT}`);

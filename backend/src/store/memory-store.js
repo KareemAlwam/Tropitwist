@@ -72,8 +72,28 @@ export class MemoryStore {
   }
 
   createOrder(input) {
-    const order = { id: this.newId('ord'), status: 'pending', ...clone(input), createdAt: new Date().toISOString() };
+    const order = { id: this.newId('ord'), status: 'pending', paymentStatus: input.paymentMethod === 'cash-on-delivery' ? 'not_required' : 'pending', paymentProvider: null, paymentReference: null, paymentTransactionId: null, paymentExpiresAt: null, ...clone(input), createdAt: new Date().toISOString() };
     this.orders.push(order); return clone(order);
+  }
+  updatePayment(id, input) {
+    const order = this.orders.find((item) => item.id === id);
+    if (!order) return null;
+    Object.assign(order, input); return clone(order);
+  }
+  releasePaymentOrder(id) {
+    const order = this.orders.find((item) => item.id === id);
+    if (!order || order.paymentStatus !== 'pending') return null;
+    for (const item of order.items) {
+      const product = this.products.find((candidate) => candidate.id === item.productId);
+      if (product) product.inventory += item.quantity;
+    }
+    Object.assign(order, { status: 'cancelled', paymentStatus: 'failed' });
+    return clone(order);
+  }
+  expirePendingPaymentOrders(now = Date.now()) {
+    const expired = this.orders.filter((order) => order.paymentStatus === 'pending' && order.paymentExpiresAt && new Date(order.paymentExpiresAt).getTime() <= now);
+    for (const order of expired) this.releasePaymentOrder(order.id);
+    return expired.length;
   }
   listOrders(userId) { return clone(this.orders.filter((item) => item.userId === userId)); }
   findOrder(id) { const order = this.orders.find((item) => item.id === id); return order ? clone(order) : null; }

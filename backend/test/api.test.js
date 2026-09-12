@@ -76,6 +76,19 @@ test('checkout requires an account and rejects excessive stock', () => withApi(a
   assert.equal(stock.body.error.code, 'INSUFFICIENT_STOCK');
 }));
 
+test('card payments remain unavailable until Paymob is configured', () => withApi(async (request) => {
+  const methods = await request('/api/v1/payments/methods');
+  assert.equal(methods.status, 200);
+  assert.equal(methods.body.data.paymobCard, false);
+  const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
+  const checkout = await request('/api/v1/payments/paymob/checkout', {
+    method: 'POST', headers: { authorization: `Bearer ${registration.body.data.accessToken}` },
+    body: { customer: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', phone: '01000000000', address: '12 Nile Street', city: 'Cairo', area: 'Dokki' }, items: [{ productId: 'p1', quantity: 1 }] },
+  });
+  assert.equal(checkout.status, 503);
+  assert.equal(checkout.body.error.code, 'PAYMENT_UNAVAILABLE');
+}));
+
 test('admin dashboard rejects a regular customer', () => withApi(async (request) => {
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
   const dashboard = await request('/api/admin/dashboard', { headers: { authorization: `Bearer ${registration.body.data.accessToken}` } });

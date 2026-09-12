@@ -38,6 +38,7 @@ compatibility prefix for the current frontend admin screen.
 - `GET /cart`, `POST /cart/items`, `PATCH|DELETE /cart/items/:productId`
 - `POST /checkout/session`
 - `POST /orders`, `GET /orders`, `GET /orders/:id`
+- `GET /payments/methods`, `POST /payments/paymob/checkout`, `POST /payments/paymob/webhook`
 - `GET /wishlist`, `POST /wishlist/items`, `DELETE /wishlist/items/:productId`
 - `POST /newsletter/subscriptions`
 - `GET /admin/dashboard`, `GET|POST /admin/products`, `PATCH /admin/products/:id`
@@ -49,7 +50,27 @@ database; it is sent to browsers as an `HttpOnly` cookie. Guest carts use a stab
 random `X-Cart-Id` header. Checkout quotes and order creation require an
 authenticated account. Prices, delivery charges, and availability are always
 recalculated by the server. Raw card details are never accepted; only cash on
-delivery is enabled until a hosted payment-provider flow is configured.
+delivery is enabled by default. Paymob card checkout becomes available only when
+the Paymob environment variables are configured.
+
+## Paymob Card Payments
+
+Tropitwist uses Paymob Unified Checkout, so card details are captured on Paymob's
+hosted checkout page and never reach this API. Create a Paymob merchant account,
+complete its business verification, then set these private server variables:
+
+```dotenv
+PAYMOB_SECRET_KEY=sk_test_or_live_value
+PAYMOB_PUBLIC_KEY=pk_test_or_live_value
+PAYMOB_CARD_INTEGRATION_ID=123456
+PAYMOB_HMAC_SECRET=callback_hmac_secret
+PAYMOB_WEBHOOK_URL=https://api.example.com/api/v1/payments/paymob/webhook
+PAYMOB_REDIRECT_URL=https://example.com/checkout
+```
+
+Use all test credentials first. Set the Paymob callback to the webhook URL, then
+make a test payment after the API is reachable through HTTPS. The callback HMAC
+and the server-calculated order amount are verified before an order is marked paid.
 
 `POST /auth/refresh` and `POST /auth/logout` require an `X-CSRF-Token` header.
 The frontend receives a fresh token at login/registration or from `GET /auth/csrf`.

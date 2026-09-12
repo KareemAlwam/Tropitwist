@@ -17,8 +17,12 @@ export default function Checkout() {
   const [formVersion, setFormVersion] = useState(0);
   const [validationError, setValidationError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [cardPaymentsEnabled, setCardPaymentsEnabled] = useState(false);
+  const [returnedOrder, setReturnedOrder] = useState(null);
+  const returnedOrderId = new URLSearchParams(window.location.search).get('orderId');
 
   useEffect(() => {
+    api('/payments/methods').then((methods) => setCardPaymentsEnabled(Boolean(methods.paymobCard))).catch(() => setCardPaymentsEnabled(false));
     restoreSession().then((savedSession) => {
       if (!savedSession) return;
       return api('/addresses').then((addresses) => {
@@ -33,11 +37,16 @@ export default function Checkout() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!returnedOrderId) return;
+    restoreSession().then((savedSession) => savedSession && api(`/orders/${returnedOrderId}`)).then((order) => order && setReturnedOrder(order)).catch(() => setValidationError('We could not confirm this payment yet. Check your orders in the account dashboard.'));
+  }, [returnedOrderId]);
+
   async function handleSubmit(event) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const formValues = Object.fromEntries(formData.entries());
-    const errors = validateCheckout(formValues, 'cash-on-delivery');
+    const errors = validateCheckout(formValues);
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       setValidationError('Please correct the highlighted fields.');
@@ -51,7 +60,7 @@ export default function Checkout() {
     const customer = withoutPaymentDetails(formValues);
     const orderPayload = {
       customer,
-      paymentMethod: 'cash-on-delivery',
+      paymentMethod,
       items: items.map(({ product, quantity }) => ({
         productId: product.id,
         quantity,
@@ -66,6 +75,12 @@ export default function Checkout() {
       if (rememberAddress && !savedAddresses.some((address) => address.address === customer.address && address.city === customer.city && address.area === customer.area)) {
         await api('/addresses', { method: 'POST', body: JSON.stringify({ label: 'Home', firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone, address: customer.address, city: customer.city, area: customer.area }) });
       }
+      if (paymentMethod === 'paymob-card') {
+        const payment = await api('/payments/paymob/checkout', { method: 'POST', body: JSON.stringify(orderPayload) });
+        clearCart();
+        window.location.assign(payment.checkoutUrl);
+        return;
+      }
       await api('/orders', { method: 'POST', body: JSON.stringify(orderPayload) });
       clearCart();
       setSubmitted(true);
@@ -73,6 +88,18 @@ export default function Checkout() {
       setFieldErrors(error.details || {});
       setValidationError(error.message);
     }
+  }
+
+  if (returnedOrder) {
+    const label = returnedOrder.paymentStatus === 'paid' ? 'PAYMENT CONFIRMED.' : returnedOrder.paymentStatus === 'failed' ? 'PAYMENT WAS NOT COMPLETED.' : 'PAYMENT IS BEING CONFIRMED.';
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <p className="motion-rise text-[10px] font-bold tracking-[0.2em] text-cherry mb-3">PAYMENT STATUS</p>
+        <h1 className="motion-reveal font-display font-bold text-ink text-5xl leading-none">{label}</h1>
+        <p className="mt-5 text-sm text-ink/60">Order {returnedOrder.id} · LE {returnedOrder.total}</p>
+        <a href={route('/account')} className="inline-block mt-8 rounded-full bg-ink text-cream px-7 py-4 text-xs font-bold tracking-widest hover:bg-cherry transition-colors">VIEW YOUR ORDERS</a>
+      </main>
+    );
   }
 
   if (!items.length) {
@@ -139,23 +166,15 @@ export default function Checkout() {
                 <input type="radio" name="payment" checked={paymentMethod === 'cash-on-delivery'} onChange={() => setPaymentMethod('cash-on-delivery')} value="cash-on-delivery" />
                 <span className="min-w-0"><strong className="block">Cash on delivery</strong><small className="text-ink/55">Pay when your order arrives.</small></span>
               </label>
-              <div className="flex min-w-0 items-center gap-3 rounded-brand border border-ink/10 p-4 text-sm opacity-60">
-                <input type="radio" name="payment" disabled />
-                <span className="min-w-0"><strong className="block">Visa / Mastercard</strong><small className="text-ink/55">Available after payment-provider integration.</small></span>
-              </div>
+              <label className={`flex min-w-0 items-center gap-3 rounded-brand border p-4 text-sm ${cardPaymentsEnabled ? 'cursor-pointer' : 'opacity-60'} ${paymentMethod === 'paymob-card' ? 'border-cherry bg-cherry/5' : 'border-ink/15'}`}>
+                <input type="radio" name="payment" checked={paymentMethod === 'paymob-card'} onChange={() => setPaymentMethod('paymob-card')} value="paymob-card" disabled={!cardPaymentsEnabled} />
+                <span className="min-w-0"><strong className="block">Visa / Mastercard</strong><small className="text-ink/55">{cardPaymentsEnabled ? 'Secure checkout provided by Paymob.' : 'Card payments are not available yet.'}</small></span>
+              </label>
             </div>
-            {paymentMethod === 'card' && (
-              <div className="grid sm:grid-cols-2 gap-4 mt-4 rounded-brand bg-ink/5 p-4">
-                <label className="text-xs font-bold tracking-wide sm:col-span-2">CARD NUMBER<input name="cardNumber" inputMode="numeric" placeholder="•••• •••• •••• ••••" className={`checkout-input bg-cream ${fieldErrors.cardNumber ? 'border-cherry' : ''}`} />{fieldErrors.cardNumber && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors.cardNumber}</span>}</label>
-                <label className="text-xs font-bold tracking-wide">EXPIRY DATE<input name="expiry" placeholder="MM / YY" className={`checkout-input bg-cream ${fieldErrors.expiry ? 'border-cherry' : ''}`} />{fieldErrors.expiry && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors.expiry}</span>}</label>
-                <label className="text-xs font-bold tracking-wide">CVV<input name="cvv" inputMode="numeric" placeholder="•••" className={`checkout-input bg-cream ${fieldErrors.cvv ? 'border-cherry' : ''}`} />{fieldErrors.cvv && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors.cvv}</span>}</label>
-                <p className="sm:col-span-2 text-[11px] text-ink/55">Card processing will be connected to the payment provider on the backend.</p>
-              </div>
-            )}
           </section>
 
           <button type="submit" className="w-full rounded-full bg-cherry text-cream py-4 text-xs font-bold tracking-widest hover:bg-ink transition-colors">
-            PLACE ORDER · LE {total}
+            {paymentMethod === 'paymob-card' ? 'CONTINUE TO SECURE PAYMENT' : `PLACE ORDER · LE ${total}`}
           </button>
           {validationError && <p role="alert" className="rounded-brand bg-cherry/10 p-4 text-sm text-cherry">{validationError}</p>}
           {submitted && <p className="rounded-brand bg-banana p-4 text-sm text-ink">Your order details are ready to be sent to the backend.</p>}

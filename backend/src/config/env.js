@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+const optional = (schema) => z.preprocess((value) => value === '' ? undefined : value, schema.optional());
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -10,6 +12,12 @@ const environmentSchema = z.object({
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
   JWT_ACCESS_SECRET: z.string().min(32).default('development-only-jwt-access-secret-change-before-production'),
+  PAYMOB_SECRET_KEY: optional(z.string()),
+  PAYMOB_PUBLIC_KEY: optional(z.string()),
+  PAYMOB_CARD_INTEGRATION_ID: optional(z.coerce.number().int().positive()),
+  PAYMOB_HMAC_SECRET: optional(z.string()),
+  PAYMOB_WEBHOOK_URL: optional(z.string().url()),
+  PAYMOB_REDIRECT_URL: optional(z.string().url()),
 });
 
 const parsedEnvironment = environmentSchema.superRefine((value, context) => {
@@ -30,3 +38,4 @@ if (!parsedEnvironment.success) {
 }
 
 export const env = parsedEnvironment.data;
+export const paymobEnabled = Boolean(env.PAYMOB_SECRET_KEY && env.PAYMOB_PUBLIC_KEY && env.PAYMOB_CARD_INTEGRATION_ID && env.PAYMOB_HMAC_SECRET && env.PAYMOB_WEBHOOK_URL && env.PAYMOB_REDIRECT_URL);

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { env } from '../config/env.js';
+import { env, paymobEnabled } from '../config/env.js';
 import { ApiError, asyncRoute } from '../lib/errors.js';
 import { createAccessToken, createCsrfToken, createToken, hashPassword, verifyAccessToken, verifyCsrfToken, verifyPassword } from '../lib/security.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
+import { createPaymobCheckout, verifyPaymobCallback } from '../services/paymob.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(8).max(128);
@@ -107,6 +108,34 @@ function validateInventory(store, items) {
   });
 }
 
+function createOrderInput(store, user, input) {
+  const lines = validateInventory(store, input.items);
+  const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const totals = calculateTotals(subtotal);
+  for (const line of lines) line.product.inventory -= line.quantity;
+  return {
+    lines,
+    order: store.createOrder({
+      userId: user.id,
+      customer: { ...input.customer, email: user.email },
+      paymentMethod: input.paymentMethod,
+      paymentExpiresAt: input.paymentMethod === 'paymob-card' ? new Date(Date.now() + 3600000).toISOString() : null,
+      items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })),
+      ...totals,
+    }, lines),
+  };
+}
+
+function paymobConfig() {
+  return {
+    secretKey: env.PAYMOB_SECRET_KEY,
+    publicKey: env.PAYMOB_PUBLIC_KEY,
+    cardIntegrationId: env.PAYMOB_CARD_INTEGRATION_ID,
+    webhookUrl: env.PAYMOB_WEBHOOK_URL,
+    redirectUrl: env.PAYMOB_REDIRECT_URL,
+  };
+}
+
 export function createApiRouter(store) {
   const router = Router();
   router.use(optionalUser(store));
@@ -139,6 +168,8 @@ export function createApiRouter(store) {
     if (!product || product.status !== 'active') return next(new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found.'));
     response.json({ data: publicProduct(product) });
   });
+
+  router.get('/payments/methods', (_request, response) => response.json({ data: { cashOnDelivery: true, paymobCard: paymobEnabled } }));
 
   router.post('/auth/register', registrationLimiter, asyncRoute(async (request, response) => {
     const input = z.object({ firstName: z.string().trim().min(1).max(80), lastName: z.string().trim().min(1).max(80), email, password }).parse(request.body);
@@ -243,19 +274,54 @@ export function createApiRouter(store) {
   router.post('/checkout/session', requireUser, (request, response) => {
     const input = z.object({ items: z.array(itemSchema).min(1) }).parse(request.body);
     const lines = validateInventory(store, input.items); const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-    response.json({ data: { items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...calculateTotals(subtotal), paymentMethods: ['cash-on-delivery'] } });
+    response.json({ data: { items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...calculateTotals(subtotal), paymentMethods: ['cash-on-delivery', ...(paymobEnabled ? ['paymob-card'] : [])] } });
   });
 
   router.post('/orders', requireUser, asyncRoute(async (request, response) => {
     const input = z.object({ customer: customerSchema, paymentMethod: z.enum(['cash-on-delivery']), items: z.array(itemSchema).min(1).max(50) }).parse(request.body);
     const owner = cartOwner(request);
-    const lines = validateInventory(store, input.items); const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-    const totals = calculateTotals(subtotal);
-    for (const line of lines) line.product.inventory -= line.quantity;
-    const order = store.createOrder({ userId: request.user.id, customer: { ...input.customer, email: request.user.email }, paymentMethod: input.paymentMethod, items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...totals }, lines);
+    const { order } = createOrderInput(store, request.user, input);
     store.setCart(owner, []);
     await flushStore(store);
     response.status(201).json({ data: order });
+  }));
+  router.post('/payments/paymob/checkout', requireUser, asyncRoute(async (request, response) => {
+    if (!paymobEnabled) throw new ApiError(503, 'PAYMENT_UNAVAILABLE', 'Card payments are not configured yet.');
+    const input = z.object({ customer: customerSchema, items: z.array(itemSchema).min(1).max(50) }).parse(request.body);
+    const owner = cartOwner(request);
+    const { order } = createOrderInput(store, request.user, { ...input, paymentMethod: 'paymob-card' });
+    await flushStore(store);
+    try {
+      const checkout = await createPaymobCheckout(order, paymobConfig());
+      store.updatePayment(order.id, { paymentProvider: 'paymob', paymentReference: checkout.reference, paymentStatus: 'pending' });
+      store.setCart(owner, []);
+      await flushStore(store);
+      response.status(201).json({ data: { orderId: order.id, checkoutUrl: checkout.checkoutUrl } });
+    } catch (error) {
+      store.releasePaymentOrder(order.id);
+      await flushStore(store);
+      throw new ApiError(502, 'PAYMENT_PROVIDER_ERROR', 'Card checkout could not be started. Please try again or use cash on delivery.');
+    }
+  }));
+  router.post('/payments/paymob/webhook', asyncRoute(async (request, response) => {
+    const receivedHmac = request.get('x-paymob-hmac') || request.body?.hmac || request.query?.hmac;
+    if (!paymobEnabled || !verifyPaymobCallback(request.body, receivedHmac, env.PAYMOB_HMAC_SECRET)) {
+      throw new ApiError(401, 'INVALID_PAYMENT_CALLBACK', 'Payment callback could not be verified.');
+    }
+    const transaction = request.body.obj;
+    const reference = String(transaction.order?.id || '');
+    const order = store.orders.find((item) => item.paymentProvider === 'paymob' && item.paymentReference === reference);
+    if (!order) throw new ApiError(404, 'PAYMENT_ORDER_NOT_FOUND', 'Payment order was not found.');
+    if (transaction.currency !== order.currency || Number(transaction.amount_cents) !== order.total * 100) {
+      throw new ApiError(422, 'PAYMENT_AMOUNT_MISMATCH', 'Payment amount does not match the order.');
+    }
+    if (transaction.success && !transaction.is_refunded && !transaction.is_voided) {
+      store.updatePayment(order.id, { paymentStatus: 'paid', paymentTransactionId: String(transaction.id), paymentExpiresAt: null, status: 'confirmed' });
+    } else if (order.paymentStatus === 'pending') {
+      store.releasePaymentOrder(order.id);
+    }
+    await flushStore(store);
+    response.status(204).end();
   }));
   router.get('/orders', requireUser, (request, response) => response.json({ data: store.listOrders(request.user.id) }));
   router.get('/orders/:id', requireUser, (request, response) => {

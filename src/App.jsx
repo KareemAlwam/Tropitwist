@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import Admin from './components/pages/Admin';
 import StorefrontLayout from './app/StorefrontLayout';
 import { resolveStorefrontPage } from './app/routes';
@@ -28,4 +29,3 @@ export default function App() {
     </ProductCatalogProvider>
   );
 }
-import { useEffect } from 'react';
