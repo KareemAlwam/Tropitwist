@@ -3,7 +3,7 @@ import { route } from '../../utils/routes';
 import { FREE_SHIPPING_THRESHOLD, calculateOrderTotals } from '../../utils/order';
 
 export default function Cart() {
-  const { items, subtotal, updateQuantity, removeFromCart } = useCart();
+  const { items, subtotal, updateQuantity, removeFromCart, itemCount, catalogStatus, catalogError } = useCart();
   const { shipping, total } = calculateOrderTotals(subtotal);
   const freeShippingRemaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
 
@@ -14,7 +14,11 @@ export default function Cart() {
         <h1 className="motion-reveal font-display font-bold text-ink text-6xl md:text-8xl leading-[0.82]">YOUR<br /><span className="text-cherry">CART.</span></h1>
       </div>
 
-      {items.length === 0 ? (
+      {catalogStatus === 'loading' && itemCount > 0 ? (
+        <div className="card-enter rounded-brand bg-banana p-10 text-center"><p className="text-sm text-ink/65">Loading your cart...</p></div>
+      ) : catalogStatus === 'error' && itemCount > 0 ? (
+        <div className="card-enter rounded-brand bg-banana p-10 text-center"><p className="text-sm text-ink/65">{catalogError}</p></div>
+      ) : items.length === 0 ? (
         <div className="card-enter rounded-brand bg-banana p-10 md:p-16 text-center">
           <h2 className="font-display font-bold text-ink text-5xl">YOUR BAG IS GLOWINGLY EMPTY.</h2>
           <p className="mt-4 text-sm text-ink/65">Add something good to your daily routine.</p>

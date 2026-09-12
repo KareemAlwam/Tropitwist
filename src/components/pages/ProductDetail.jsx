@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { products } from '../../data/products';
+import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { currentRoute, route } from '../../utils/routes';
 import { api, getSession } from '../../services/api';
@@ -12,12 +11,40 @@ const CATEGORY_BACK_LINKS = {
 
 export default function ProductDetail() {
   const productId = currentRoute(window.location.pathname).split('/').filter(Boolean).pop();
-  const product = products.find((item) => item.id === productId);
+  const [product, setProduct] = useState(null);
+  const [status, setStatus] = useState('loading');
   const [quantity, setQuantity] = useState(1);
   const [savedStatus, setSavedStatus] = useState('');
   const { addToCart } = useCart();
 
-  if (!product) {
+  useEffect(() => {
+    let cancelled = false;
+    setStatus('loading');
+    setQuantity(1);
+    api(`/products/${encodeURIComponent(productId)}`)
+      .then((data) => {
+        if (cancelled) return;
+        setProduct(data);
+        setStatus('ready');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProduct(null);
+          setStatus('not-found');
+        }
+      });
+    return () => { cancelled = true; };
+  }, [productId]);
+
+  if (status === 'loading') {
+    return (
+      <main className="max-w-7xl mx-auto px-4 py-16 md:py-24">
+        <p className="text-sm text-ink/65">Loading product...</p>
+      </main>
+    );
+  }
+
+  if (status !== 'ready' || !product) {
     return (
       <main className="max-w-7xl mx-auto px-4 py-16 md:py-24">
         <section className="page-spotlight border-b border-ink/10 pb-12">
@@ -37,6 +64,7 @@ export default function ProductDetail() {
   }
 
   const backLink = CATEGORY_BACK_LINKS[product.category] || CATEGORY_BACK_LINKS.skincare;
+  const inStock = product.available !== false;
 
   return (
     <main>
@@ -73,15 +101,15 @@ export default function ProductDetail() {
                   <span className="ml-3 text-sm text-ink/40 line-through">LE {product.compareAtPrice}</span>
                 )}
               </span>
-              <span className="text-xs text-ink/50">{product.size || '50 ml'} · In stock</span>
+              <span className="text-xs text-ink/50">{product.size || '50 ml'} · {inStock ? 'In stock' : 'Out of stock'}</span>
             </div>
             <div className="card-enter motion-delay-3 flex flex-col gap-3 mt-6 max-w-lg sm:flex-row">
               <div className="flex items-center border border-ink/15 rounded-full">
                 <button aria-label="Decrease quantity" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-4 py-3 text-lg">−</button>
                 <span className="w-7 text-center text-sm">{quantity}</span>
-                <button aria-label="Increase quantity" onClick={() => setQuantity(quantity + 1)} className="px-4 py-3 text-lg">+</button>
+                <button aria-label="Increase quantity" onClick={() => setQuantity(Math.min(product.inventory || quantity + 1, quantity + 1))} disabled={!inStock || quantity >= product.inventory} className="px-4 py-3 text-lg disabled:cursor-not-allowed disabled:opacity-40">+</button>
               </div>
-              <button onClick={() => addToCart(product.id, quantity)} className="min-h-12 flex-1 rounded-full bg-cherry px-4 py-3 text-xs font-bold tracking-widest text-cream hover:bg-ink transition-colors">
+              <button onClick={() => addToCart(product.id, quantity)} disabled={!inStock} className="min-h-12 flex-1 rounded-full bg-cherry px-4 py-3 text-xs font-bold tracking-widest text-cream hover:bg-ink transition-colors disabled:cursor-not-allowed disabled:opacity-40">
                 ADD TO CART · LE {product.price * quantity}
               </button>
               <button type="button" onClick={async () => { if (!getSession()) { setSavedStatus('Sign in to save products.'); return; } try { await api('/wishlist/items', { method: 'POST', body: JSON.stringify({ productId: product.id }) }); setSavedStatus('Saved to wishlist.'); } catch (error) { setSavedStatus(error.message); } }} className="min-h-12 rounded-full border border-ink/20 px-4 py-3 text-[10px] font-bold tracking-widest hover:border-cherry hover:text-cherry">SAVE</button>

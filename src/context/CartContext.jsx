@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { products } from '../data/products';
 import { readStorage, writeStorage } from '../services/storage';
+import { useProductCatalog } from './ProductCatalogContext';
 
 const STORAGE_KEY = 'tropitwist-cart';
 const CartContext = createContext(null);
@@ -12,6 +12,7 @@ function readStoredCart() {
 export function CartProvider({ children }) {
   const [cart, setCart] = useState(readStoredCart);
   const [lastAddedItem, setLastAddedItem] = useState(null);
+  const { products, status: catalogStatus, error: catalogError } = useProductCatalog();
 
   useEffect(() => {
     writeStorage(STORAGE_KEY, cart);
@@ -30,8 +31,10 @@ export function CartProvider({ children }) {
 
   const value = useMemo(() => ({
     items,
-    itemCount: items.reduce((total, item) => total + item.quantity, 0),
+    itemCount: cart.reduce((total, item) => total + item.quantity, 0),
     subtotal: items.reduce((total, item) => total + item.product.price * item.quantity, 0),
+    catalogStatus,
+    catalogError,
     lastAddedItem,
     clearLastAddedItem: () => setLastAddedItem(null),
     addToCart: (productId, quantity = 1) => {
@@ -62,7 +65,7 @@ export function CartProvider({ children }) {
       setCart((current) => current.filter((item) => item.productId !== productId));
     },
     clearCart: () => setCart([]),
-  }), [items, lastAddedItem]);
+  }), [cart, catalogError, catalogStatus, items, lastAddedItem, products]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
