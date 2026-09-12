@@ -57,3 +57,14 @@ Cart contents are stored locally in the browser under `tropitwist-cart`.
 
 The API lives in `backend/`. See [`backend/README.md`](backend/README.md) for its
 setup, routes, authentication, and test commands.
+
+## Production deployment
+
+The GitHub Pages site is the frontend only. Deploy the Express API and PostgreSQL
+from `docker-compose.production.yml` to a server or container host, then set the
+repository variable `VITE_API_BASE_URL` to the public API origin before building
+the frontend. The API server must use `FRONTEND_ORIGIN=https://kareemalwam.github.io`.
+
+Copy `.env.production.example` to a private deployment environment; never commit
+the filled file. See [`backend/README.md`](backend/README.md#production-container)
+for the container command and required variables.
