@@ -1,21 +1,23 @@
 import pg from 'pg';
 import { MemoryStore } from './memory-store.js';
+import { hashToken } from '../lib/security.js';
 
 const { Pool } = pg;
 const iso = (value) => value instanceof Date ? value.toISOString() : value;
+const productValues = (product) => [product.id, product.slug, product.name, product.category, product.type, product.price, product.compareAtPrice ?? null, product.size, product.inventory, product.featured, product.bestseller, product.status, product.description, product.detail, product.image];
+const productUpsert = `
+  INSERT INTO products VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+  ON CONFLICT (id) DO UPDATE SET
+    slug = EXCLUDED.slug, name = EXCLUDED.name, category = EXCLUDED.category,
+    type = EXCLUDED.type, price = EXCLUDED.price, compare_at_price = EXCLUDED.compare_at_price,
+    size = EXCLUDED.size, inventory = EXCLUDED.inventory, featured = EXCLUDED.featured,
+    bestseller = EXCLUDED.bestseller, status = EXCLUDED.status, description = EXCLUDED.description,
+    detail = EXCLUDED.detail, image = EXCLUDED.image
+`;
 
-// The route layer keeps its synchronous store contract. PostgreSQL persists the
-// same domain records into normalized tables in a transaction after each write.
-export class PostgresStore extends MemoryStore {
-  constructor(connectionString) {
-    super();
-    this.pool = new Pool({ connectionString });
-    this.writeQueue = Promise.resolve();
-    this.ready = false;
-  }
-
-  async init() {
-    await this.pool.query(`
+const migrations = [{
+  id: '001_initial_schema',
+  sql: `
       CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, type TEXT NOT NULL, price INTEGER NOT NULL, compare_at_price INTEGER, size TEXT NOT NULL, inventory INTEGER NOT NULL, featured BOOLEAN NOT NULL, bestseller BOOLEAN NOT NULL, status TEXT NOT NULL, description TEXT NOT NULL, detail TEXT NOT NULL, image TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT UNIQUE NOT NULL, expires_at TIMESTAMPTZ NOT NULL);
@@ -25,7 +27,42 @@ export class PostgresStore extends MemoryStore {
       CREATE TABLE IF NOT EXISTS order_items (order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE, product_id TEXT NOT NULL, name TEXT NOT NULL, quantity INTEGER NOT NULL, unit_price INTEGER NOT NULL, line_total INTEGER NOT NULL, PRIMARY KEY (order_id, product_id));
       CREATE TABLE IF NOT EXISTS wishlists (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE, PRIMARY KEY (user_id, product_id));
       CREATE TABLE IF NOT EXISTS newsletter_subscriptions (email TEXT PRIMARY KEY);
-    `);
+  `,
+}];
+
+async function applyMigrations(pool) {
+  await pool.query('CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
+  for (const migration of migrations) {
+    const applied = await pool.query('SELECT 1 FROM schema_migrations WHERE id = $1', [migration.id]);
+    if (applied.rowCount) continue;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(migration.sql);
+      await client.query('INSERT INTO schema_migrations (id) VALUES ($1)', [migration.id]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+// The route layer keeps its synchronous store contract. PostgreSQL persists the
+// same domain records into normalized tables in a transaction after each write.
+export class PostgresStore extends MemoryStore {
+  constructor(connectionString) {
+    super();
+    this.pool = new Pool({ connectionString });
+    this.writeQueue = Promise.resolve();
+    this.lastWrite = Promise.resolve();
+    this.ready = false;
+  }
+
+  async init() {
+    await applyMigrations(this.pool);
     const result = await this.pool.query('SELECT COUNT(*)::int AS count FROM products');
     if (result.rows[0].count === 0) {
       const legacy = await this.pool.query('SELECT data FROM tropitwist_state WHERE id = 1').catch(() => null);
@@ -87,26 +124,115 @@ export class PostgresStore extends MemoryStore {
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
 
-  persist() {
+  queueWrite(operation) {
     if (!this.ready) return this.writeQueue;
-    this.writeQueue = this.writeQueue.then(() => this.writeSnapshot());
-    this.writeQueue.catch((error) => console.error('Failed to persist store state:', error));
-    return this.writeQueue;
+    const write = this.writeQueue.then(operation);
+    this.lastWrite = write;
+    this.writeQueue = write.catch((error) => {
+      console.error('Failed to persist store state:', error);
+    });
+    return write;
   }
 
-  async flush() { await this.writeQueue; }
+  async flush() { await this.lastWrite; }
 
-  createUser(...args) { const value = super.createUser(...args); this.persist(); return value; }
-  updateUser(...args) { const value = super.updateUser(...args); this.persist(); return value; }
-  createSession(...args) { const value = super.createSession(...args); this.persist(); return value; }
-  deleteSession(...args) { const value = super.deleteSession(...args); this.persist(); return value; }
-  setCart(...args) { const value = super.setCart(...args); this.persist(); return value; }
-  mergeCart(...args) { const value = super.mergeCart(...args); this.persist(); return value; }
-  createAddress(...args) { const value = super.createAddress(...args); this.persist(); return value; }
-  updateAddress(...args) { const value = super.updateAddress(...args); this.persist(); return value; }
-  deleteAddress(...args) { const value = super.deleteAddress(...args); this.persist(); return value; }
-  createOrder(...args) { const value = super.createOrder(...args); this.persist(); return value; }
-  setWishlist(...args) { const value = super.setWishlist(...args); this.persist(); return value; }
+  createUser(...args) {
+    const value = super.createUser(...args); const user = this.findUser(value.id);
+    this.queueWrite(() => this.pool.query('INSERT INTO users VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [user.id, user.firstName, user.lastName, user.email, user.passwordHash, user.role, user.createdAt, user.updatedAt]));
+    return value;
+  }
+
+  updateUser(...args) {
+    const value = super.updateUser(...args); const user = this.findUser(value.id);
+    this.queueWrite(() => this.pool.query('UPDATE users SET first_name = $1, last_name = $2, email = $3, password_hash = $4, role = $5, updated_at = $6 WHERE id = $7', [user.firstName, user.lastName, user.email, user.passwordHash, user.role, user.updatedAt, user.id]));
+    return value;
+  }
+
+  createSession(...args) {
+    super.createSession(...args); const [userId, token] = args;
+    const session = this.sessions.find((item) => item.userId === userId && item.tokenHash === hashToken(token));
+    this.queueWrite(() => this.pool.query('INSERT INTO sessions VALUES ($1,$2,$3,$4)', [session.id, session.userId, session.tokenHash, session.expiresAt]));
+  }
+
+  deleteSession(token) {
+    super.deleteSession(token);
+    this.queueWrite(() => this.pool.query('DELETE FROM sessions WHERE token_hash = $1', [hashToken(token)]));
+  }
+
+  replaceCart(owner, items) {
+    return this.queueWrite(async () => {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM carts WHERE owner = $1', [owner]);
+        for (const item of items) await client.query('INSERT INTO carts VALUES ($1,$2,$3)', [owner, item.productId, item.quantity]);
+        await client.query('COMMIT');
+      } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+    });
+  }
+
+  setCart(...args) {
+    const value = super.setCart(...args); const [owner] = args;
+    this.replaceCart(owner, this.getCart(owner));
+    return value;
+  }
+
+  mergeCart(...args) {
+    const value = super.mergeCart(...args); const [fromOwner] = args;
+    this.queueWrite(() => this.pool.query('DELETE FROM carts WHERE owner = $1', [fromOwner]));
+    return value;
+  }
+
+  createAddress(...args) {
+    const value = super.createAddress(...args);
+    this.queueWrite(() => this.pool.query('INSERT INTO addresses VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [value.id, value.userId, value.label, value.firstName, value.lastName, value.phone, value.address, value.city, value.area, value.createdAt]));
+    return value;
+  }
+
+  updateAddress(...args) {
+    const value = super.updateAddress(...args);
+    if (value) this.queueWrite(() => this.pool.query('UPDATE addresses SET label = $1, first_name = $2, last_name = $3, phone = $4, address = $5, city = $6, area = $7 WHERE id = $8 AND user_id = $9', [value.label, value.firstName, value.lastName, value.phone, value.address, value.city, value.area, value.id, value.userId]));
+    return value;
+  }
+
+  deleteAddress(...args) {
+    const value = super.deleteAddress(...args); const [userId, id] = args;
+    if (value) this.queueWrite(() => this.pool.query('DELETE FROM addresses WHERE id = $1 AND user_id = $2', [id, userId]));
+    return value;
+  }
+
+  createOrder(input, inventoryLines = []) {
+    const value = super.createOrder(input);
+    this.queueWrite(async () => {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        for (const line of inventoryLines) await client.query('UPDATE products SET inventory = $1 WHERE id = $2', [line.product.inventory, line.product.id]);
+        await client.query('INSERT INTO orders VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [value.id, value.userId, JSON.stringify(value.customer), value.paymentMethod, value.subtotal, value.shipping, value.total, value.currency, value.status, value.createdAt]);
+        for (const item of value.items) await client.query('INSERT INTO order_items VALUES ($1,$2,$3,$4,$5,$6)', [value.id, item.productId, item.name, item.quantity, item.unitPrice, item.lineTotal]);
+        await client.query('COMMIT');
+      } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+    });
+    return value;
+  }
+
+  setWishlist(...args) {
+    const value = super.setWishlist(...args); const [userId] = args;
+    this.queueWrite(async () => {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM wishlists WHERE user_id = $1', [userId]);
+        for (const productId of value) await client.query('INSERT INTO wishlists VALUES ($1,$2)', [userId, productId]);
+        await client.query('COMMIT');
+      } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+    });
+    return value;
+  }
+
+  saveProduct(product) { return this.queueWrite(() => this.pool.query(productUpsert, productValues(product))); }
+  saveOrder(order) { return this.queueWrite(() => this.pool.query('UPDATE orders SET status = $1 WHERE id = $2', [order.status, order.id])); }
+  saveNewsletter(email) { return this.queueWrite(() => this.pool.query('INSERT INTO newsletter_subscriptions VALUES ($1) ON CONFLICT DO NOTHING', [email])); }
 
   async close() { await this.writeQueue; await this.pool.end(); }
 }

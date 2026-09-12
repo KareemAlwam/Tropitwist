@@ -12,6 +12,8 @@ test('GET /api/v1/health reports that the API is available', async () => {
     const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/health`);
 
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(response.headers.get('x-frame-options'), 'DENY');
     assert.deepEqual(await response.json(), {
       status: 'ok',
       service: 'tropitwist-api',

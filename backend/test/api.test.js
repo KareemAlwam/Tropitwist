@@ -86,16 +86,20 @@ test('admin dashboard rejects a regular customer', () => withApi(async (request)
 test('refresh tokens rotate in an HttpOnly cookie and logout revokes the session', () => withApi(async (request) => {
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
   const firstCookie = registration.headers.get('set-cookie').split(';')[0];
-  const refresh = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie } });
+  const firstCsrf = registration.body.data.csrfToken;
+  const missingCsrf = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie } });
+  assert.equal(missingCsrf.status, 403);
+  assert.equal(missingCsrf.body.error.code, 'CSRF_INVALID');
+  const refresh = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie, 'x-csrf-token': firstCsrf } });
   assert.equal(refresh.status, 200);
   const secondCookie = refresh.headers.get('set-cookie').split(';')[0];
   assert.notEqual(secondCookie, firstCookie);
-  const staleRefresh = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie } });
+  const staleRefresh = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie, 'x-csrf-token': firstCsrf } });
   assert.equal(staleRefresh.status, 401);
   const me = await request('/api/v1/me', { headers: { authorization: `Bearer ${refresh.body.data.accessToken}` } });
   assert.equal(me.status, 200);
-  const logout = await request('/api/v1/auth/logout', { method: 'POST', headers: { cookie: secondCookie } });
+  const logout = await request('/api/v1/auth/logout', { method: 'POST', headers: { cookie: secondCookie, 'x-csrf-token': refresh.body.data.csrfToken } });
   assert.equal(logout.status, 204);
-  const revoked = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: secondCookie } });
+  const revoked = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: secondCookie, 'x-csrf-token': refresh.body.data.csrfToken } });
   assert.equal(revoked.status, 401);
 }));

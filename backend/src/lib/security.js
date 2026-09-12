@@ -46,6 +46,17 @@ export function verifyAccessToken(token, secret) {
   }
 }
 
+export function createCsrfToken(refreshToken, secret) {
+  return createHmac('sha256', secret).update(`csrf:${refreshToken}`).digest('base64url');
+}
+
+export function verifyCsrfToken(refreshToken, csrfToken, secret) {
+  if (!refreshToken || !csrfToken) return false;
+  const expected = Buffer.from(createCsrfToken(refreshToken, secret));
+  const actual = Buffer.from(csrfToken);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 function signJwt(value, secret) {
   return createHmac('sha256', secret).update(value).digest('base64url');
 }

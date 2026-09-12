@@ -2,6 +2,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ?
 const SESSION_KEY = 'tropitwist-session';
 let session = null;
 let refreshInFlight = null;
+let csrfToken = null;
 
 export function getSession() {
   return session;
@@ -9,18 +10,20 @@ export function getSession() {
 
 export function setSession(nextSession) {
   session = nextSession;
+  csrfToken = nextSession.csrfToken || csrfToken;
   localStorage.removeItem(SESSION_KEY);
 }
 
 export function clearSession() {
   session = null;
+  csrfToken = null;
   localStorage.removeItem(SESSION_KEY);
 }
 
 export async function restoreSession() {
   if (session) return session;
   if (!refreshInFlight) {
-    refreshInFlight = send('/api/v1/auth/refresh', { method: 'POST' })
+    refreshInFlight = loadCsrfToken().then(() => send('/api/v1/auth/refresh', { method: 'POST' }))
       .then(async (response) => {
         if (!response.ok) return null;
         const body = await response.json();
@@ -67,8 +70,18 @@ async function send(path, options) {
     headers: {
       'Content-Type': 'application/json',
       ...(currentSession?.accessToken ? { Authorization: `Bearer ${currentSession.accessToken}` } : {}),
+      ...((path.endsWith('/auth/refresh') || path.endsWith('/auth/logout')) && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
       ...(requestOptions.headers || {}),
     },
   });
   return response;
+}
+
+async function loadCsrfToken() {
+  if (csrfToken) return csrfToken;
+  const response = await send('/api/v1/auth/csrf', { method: 'GET' });
+  if (!response.ok) return null;
+  const body = await response.json();
+  csrfToken = body?.data?.csrfToken || null;
+  return csrfToken;
 }

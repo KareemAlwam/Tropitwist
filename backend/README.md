@@ -20,13 +20,19 @@ when the process restarts. A configured but unavailable PostgreSQL server preven
 startup to avoid accepting orders that would be lost. Admin routes require an
 authenticated account whose email is listed in `ADMIN_EMAILS`.
 
+On startup, the API applies its versioned schema migrations and records each one
+in PostgreSQL's `schema_migrations` table. Normal requests write only the records
+that changed; checkout updates inventory, the order, and its line items in one
+database transaction. The legacy full-state snapshot is used only to import an
+existing local `tropitwist_state` database on first startup.
+
 ## HTTP API
 
 All primary routes are available below `/api/v1`. `/api` is also mounted as a
 compatibility prefix for the current frontend admin screen.
 
 - `GET /products`, `GET /products/:id-or-slug`
-- `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`
+- `POST /auth/register`, `POST /auth/login`, `GET /auth/csrf`, `POST /auth/refresh`, `POST /auth/logout`
 - `GET /me`, `PATCH /me`
 - `GET|POST /addresses`, `PATCH|DELETE /addresses/:id`
 - `GET /cart`, `POST /cart/items`, `PATCH|DELETE /cart/items/:productId`
@@ -44,6 +50,11 @@ random `X-Cart-Id` header. Checkout quotes and order creation require an
 authenticated account. Prices, delivery charges, and availability are always
 recalculated by the server. Raw card details are never accepted; only cash on
 delivery is enabled until a hosted payment-provider flow is configured.
+
+`POST /auth/refresh` and `POST /auth/logout` require an `X-CSRF-Token` header.
+The frontend receives a fresh token at login/registration or from `GET /auth/csrf`.
+Authentication routes are rate limited, and the API sends baseline security headers
+on every response.
 
 ## Production container
 

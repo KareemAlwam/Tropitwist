@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { ApiError, asyncRoute } from '../lib/errors.js';
-import { createAccessToken, createToken, hashPassword, verifyAccessToken, verifyPassword } from '../lib/security.js';
+import { createAccessToken, createCsrfToken, createToken, hashPassword, verifyAccessToken, verifyCsrfToken, verifyPassword } from '../lib/security.js';
+import { createRateLimiter } from '../middleware/rate-limit.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(8).max(128);
@@ -44,7 +45,7 @@ function authenticationResponse(store, response, user) {
   const refreshExpiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 86400000).toISOString();
   store.createSession(user.id, token, refreshExpiresAt);
   setRefreshCookie(response, token, refreshExpiresAt);
-  return { user, accessToken: createAccessToken(user, env.JWT_ACCESS_SECRET, env.ACCESS_TOKEN_TTL_MINUTES), accessExpiresAt: new Date(Date.now() + env.ACCESS_TOKEN_TTL_MINUTES * 60000).toISOString() };
+  return { user, accessToken: createAccessToken(user, env.JWT_ACCESS_SECRET, env.ACCESS_TOKEN_TTL_MINUTES), accessExpiresAt: new Date(Date.now() + env.ACCESS_TOKEN_TTL_MINUTES * 60000).toISOString(), csrfToken: createCsrfToken(token, env.JWT_ACCESS_SECRET) };
 }
 
 function optionalUser(store) {
@@ -95,6 +96,8 @@ function calculateTotals(subtotal) {
   return { subtotal, shipping, total: subtotal + shipping, currency: 'EGP' };
 }
 
+async function flushStore(store) { await store.flush?.(); }
+
 function validateInventory(store, items) {
   return items.map((item) => {
     const product = store.products.find((candidate) => candidate.id === item.productId && candidate.status === 'active');
@@ -107,6 +110,9 @@ function validateInventory(store, items) {
 export function createApiRouter(store) {
   const router = Router();
   router.use(optionalUser(store));
+  const registrationLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
+  const loginLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
+  const refreshLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 60 });
 
   router.get('/products', (request, response) => {
     const query = z.object({
@@ -134,61 +140,84 @@ export function createApiRouter(store) {
     response.json({ data: publicProduct(product) });
   });
 
-  router.post('/auth/register', asyncRoute(async (request, response) => {
+  router.post('/auth/register', registrationLimiter, asyncRoute(async (request, response) => {
     const input = z.object({ firstName: z.string().trim().min(1).max(80), lastName: z.string().trim().min(1).max(80), email, password }).parse(request.body);
     if (store.findUserByEmail(input.email)) throw new ApiError(409, 'EMAIL_IN_USE', 'An account already exists for this email.');
     const { password: rawPassword, ...profile } = input;
     const adminEmails = env.ADMIN_EMAILS.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
     const user = store.createUser({ ...profile, role: adminEmails.includes(profile.email) ? 'admin' : 'customer', passwordHash: hashPassword(rawPassword) });
-    response.status(201).json({ data: authenticationResponse(store, response, user) });
+    const data = authenticationResponse(store, response, user);
+    await flushStore(store);
+    response.status(201).json({ data });
   }));
 
-  router.post('/auth/login', asyncRoute(async (request, response) => {
+  router.post('/auth/login', loginLimiter, asyncRoute(async (request, response) => {
     const input = z.object({ email, password }).parse(request.body);
     const record = store.findUserByEmail(input.email);
     if (!record || !verifyPassword(input.password, record.passwordHash)) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
     const user = store.publicUser(record);
     if (request.get('x-cart-id')) store.mergeCart(`guest:${request.get('x-cart-id')}`, `user:${record.id}`);
-    response.json({ data: authenticationResponse(store, response, user) });
+    const data = authenticationResponse(store, response, user);
+    await flushStore(store);
+    response.json({ data });
   }));
 
-  router.post('/auth/refresh', (request, response) => {
+  router.get('/auth/csrf', refreshLimiter, (request, response) => {
+    const token = refreshToken(request);
+    if (!token || !store.userForToken(token)) throw new ApiError(401, 'UNAUTHORIZED', 'Sign in to continue.');
+    response.json({ data: { csrfToken: createCsrfToken(token, env.JWT_ACCESS_SECRET) } });
+  });
+
+  router.post('/auth/refresh', refreshLimiter, asyncRoute(async (request, response) => {
     const token = refreshToken(request);
     const user = token ? store.userForToken(token) : null;
+    if (!verifyCsrfToken(token, request.get('x-csrf-token'), env.JWT_ACCESS_SECRET)) throw new ApiError(403, 'CSRF_INVALID', 'The security token is missing or invalid.');
     if (!user) {
       clearRefreshCookie(response);
       throw new ApiError(401, 'UNAUTHORIZED', 'Sign in to continue.');
     }
     store.deleteSession(token);
-    response.json({ data: authenticationResponse(store, response, user) });
-  });
+    const data = authenticationResponse(store, response, user);
+    await flushStore(store);
+    response.json({ data });
+  }));
 
-  router.post('/auth/logout', (request, response) => {
+  router.post('/auth/logout', asyncRoute(async (request, response) => {
     const token = refreshToken(request);
+    if (token && !verifyCsrfToken(token, request.get('x-csrf-token'), env.JWT_ACCESS_SECRET)) throw new ApiError(403, 'CSRF_INVALID', 'The security token is missing or invalid.');
     if (token) store.deleteSession(token);
+    await flushStore(store);
     clearRefreshCookie(response);
     response.status(204).end();
-  });
+  }));
   router.get('/me', requireUser, (request, response) => response.json({ data: request.user }));
-  router.patch('/me', requireUser, (request, response) => {
+  router.patch('/me', requireUser, asyncRoute(async (request, response) => {
     const input = z.object({ firstName: z.string().trim().min(1).max(80).optional(), lastName: z.string().trim().min(1).max(80).optional() }).parse(request.body);
-    response.json({ data: store.updateUser(request.user.id, input) });
-  });
+    const user = store.updateUser(request.user.id, input);
+    await flushStore(store);
+    response.json({ data: user });
+  }));
 
   router.get('/addresses', requireUser, (request, response) => response.json({ data: store.listAddresses(request.user.id) }));
-  router.post('/addresses', requireUser, (request, response) => response.status(201).json({ data: store.createAddress(request.user.id, addressSchema.parse(request.body)) }));
-  router.patch('/addresses/:id', requireUser, (request, response, next) => {
+  router.post('/addresses', requireUser, asyncRoute(async (request, response) => {
+    const address = store.createAddress(request.user.id, addressSchema.parse(request.body));
+    await flushStore(store);
+    response.status(201).json({ data: address });
+  }));
+  router.patch('/addresses/:id', requireUser, asyncRoute(async (request, response) => {
     const updated = store.updateAddress(request.user.id, request.params.id, addressSchema.partial().parse(request.body));
-    if (!updated) return next(new ApiError(404, 'ADDRESS_NOT_FOUND', 'Address not found.'));
+    if (!updated) throw new ApiError(404, 'ADDRESS_NOT_FOUND', 'Address not found.');
+    await flushStore(store);
     response.json({ data: updated });
-  });
-  router.delete('/addresses/:id', requireUser, (request, response, next) => {
-    if (!store.deleteAddress(request.user.id, request.params.id)) return next(new ApiError(404, 'ADDRESS_NOT_FOUND', 'Address not found.'));
+  }));
+  router.delete('/addresses/:id', requireUser, asyncRoute(async (request, response) => {
+    if (!store.deleteAddress(request.user.id, request.params.id)) throw new ApiError(404, 'ADDRESS_NOT_FOUND', 'Address not found.');
+    await flushStore(store);
     response.status(204).end();
-  });
+  }));
 
   router.get('/cart', (request, response) => response.json({ data: expandedCart(store, cartOwner(request)) }));
-  router.post('/cart/items', (request, response) => {
+  router.post('/cart/items', asyncRoute(async (request, response) => {
     const input = itemSchema.parse(request.body); const owner = cartOwner(request);
     const product = store.products.find((item) => item.id === input.productId && item.status === 'active');
     if (!product) throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
@@ -196,20 +225,20 @@ export function createApiRouter(store) {
     const quantity = (existing?.quantity || 0) + input.quantity;
     if (quantity > product.inventory) throw new ApiError(409, 'INSUFFICIENT_STOCK', `Only ${product.inventory} items are available.`);
     if (existing) existing.quantity = quantity; else items.push(input);
-    store.setCart(owner, items); response.status(201).json({ data: expandedCart(store, owner) });
-  });
-  router.patch('/cart/items/:productId', (request, response) => {
+    store.setCart(owner, items); await flushStore(store); response.status(201).json({ data: expandedCart(store, owner) });
+  }));
+  router.patch('/cart/items/:productId', asyncRoute(async (request, response) => {
     const quantity = z.object({ quantity: z.coerce.number().int().min(1).max(20) }).parse(request.body).quantity;
     const owner = cartOwner(request); const items = store.getCart(owner); const item = items.find((candidate) => candidate.productId === request.params.productId);
     if (!item) throw new ApiError(404, 'CART_ITEM_NOT_FOUND', 'Cart item not found.');
     validateInventory(store, [{ productId: item.productId, quantity }]); item.quantity = quantity; store.setCart(owner, items);
-    response.json({ data: expandedCart(store, owner) });
-  });
-  router.delete('/cart/items/:productId', (request, response) => {
+    await flushStore(store); response.json({ data: expandedCart(store, owner) });
+  }));
+  router.delete('/cart/items/:productId', asyncRoute(async (request, response) => {
     const owner = cartOwner(request); const items = store.getCart(owner); const filtered = items.filter((item) => item.productId !== request.params.productId);
     if (items.length === filtered.length) throw new ApiError(404, 'CART_ITEM_NOT_FOUND', 'Cart item not found.');
-    store.setCart(owner, filtered); response.status(204).end();
-  });
+    store.setCart(owner, filtered); await flushStore(store); response.status(204).end();
+  }));
 
   router.post('/checkout/session', requireUser, (request, response) => {
     const input = z.object({ items: z.array(itemSchema).min(1) }).parse(request.body);
@@ -223,9 +252,9 @@ export function createApiRouter(store) {
     const lines = validateInventory(store, input.items); const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
     const totals = calculateTotals(subtotal);
     for (const line of lines) line.product.inventory -= line.quantity;
-    const order = store.createOrder({ userId: request.user.id, customer: { ...input.customer, email: request.user.email }, paymentMethod: input.paymentMethod, items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...totals });
+    const order = store.createOrder({ userId: request.user.id, customer: { ...input.customer, email: request.user.email }, paymentMethod: input.paymentMethod, items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({ productId: product.id, name: product.name, quantity, unitPrice, lineTotal })), ...totals }, lines);
     store.setCart(owner, []);
-    await store.flush?.();
+    await flushStore(store);
     response.status(201).json({ data: order });
   }));
   router.get('/orders', requireUser, (request, response) => response.json({ data: store.listOrders(request.user.id) }));
@@ -239,33 +268,33 @@ export function createApiRouter(store) {
     const product = store.products.find((item) => item.id === productId && item.status === 'active');
     return product ? [publicProduct(product)] : [];
   }) }));
-  router.post('/wishlist/items', requireUser, (request, response) => {
+  router.post('/wishlist/items', requireUser, asyncRoute(async (request, response) => {
     const productId = z.object({ productId: id }).parse(request.body).productId;
     if (!store.products.some((product) => product.id === productId && product.status === 'active')) throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
-    store.setWishlist(request.user.id, [...store.getWishlist(request.user.id), productId]); response.status(201).json({ data: { productId } });
-  });
-  router.delete('/wishlist/items/:productId', requireUser, (request, response) => { store.setWishlist(request.user.id, store.getWishlist(request.user.id).filter((item) => item !== request.params.productId)); response.status(204).end(); });
+    store.setWishlist(request.user.id, [...store.getWishlist(request.user.id), productId]); await flushStore(store); response.status(201).json({ data: { productId } });
+  }));
+  router.delete('/wishlist/items/:productId', requireUser, asyncRoute(async (request, response) => { store.setWishlist(request.user.id, store.getWishlist(request.user.id).filter((item) => item !== request.params.productId)); await flushStore(store); response.status(204).end(); }));
 
-  router.post('/newsletter/subscriptions', (request, response) => {
+  router.post('/newsletter/subscriptions', asyncRoute(async (request, response) => {
     const subscriber = z.object({ email }).parse(request.body).email; const existed = store.newsletter.has(subscriber);
-    store.newsletter.add(subscriber); store.persist?.(); response.status(existed ? 200 : 201).json({ data: { email: subscriber, subscribed: true } });
-  });
+    store.newsletter.add(subscriber); store.saveNewsletter?.(subscriber); await flushStore(store); response.status(existed ? 200 : 201).json({ data: { email: subscriber, subscribed: true } });
+  }));
 
   router.get('/admin/dashboard', requireAdmin, (request, response) => response.json(adminDashboard(store)));
   router.get('/admin/products', requireAdmin, (_request, response) => response.json({ data: store.products.map(publicProduct) }));
-  router.post('/admin/products', requireAdmin, (request, response) => {
+  router.post('/admin/products', requireAdmin, asyncRoute(async (request, response) => {
     const input = productSchema().parse(request.body);
     if (store.products.some((product) => product.slug === input.slug)) throw new ApiError(409, 'SLUG_IN_USE', 'Product slug already exists.');
-    const product = { id: store.newId('prd'), ...input }; store.products.push(product); store.persist?.(); response.status(201).json({ data: publicProduct(product) });
-  });
-  router.patch('/admin/products/:id', requireAdmin, (request, response) => {
+    const product = { id: store.newId('prd'), ...input }; store.products.push(product); store.saveProduct?.(product); await flushStore(store); response.status(201).json({ data: publicProduct(product) });
+  }));
+  router.patch('/admin/products/:id', requireAdmin, asyncRoute(async (request, response) => {
     const product = store.products.find((item) => item.id === request.params.id); if (!product) throw new ApiError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
-    Object.assign(product, productSchema().partial().parse(request.body)); store.persist?.(); response.json({ data: publicProduct(product) });
-  });
-  router.patch('/admin/orders/:id', requireAdmin, (request, response) => {
+    Object.assign(product, productSchema().partial().parse(request.body)); store.saveProduct?.(product); await flushStore(store); response.json({ data: publicProduct(product) });
+  }));
+  router.patch('/admin/orders/:id', requireAdmin, asyncRoute(async (request, response) => {
     const order = store.orders.find((item) => item.id === request.params.id); if (!order) throw new ApiError(404, 'ORDER_NOT_FOUND', 'Order not found.');
-    order.status = z.object({ status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']) }).parse(request.body).status; store.persist?.(); response.json({ data: order });
-  });
+    order.status = z.object({ status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']) }).parse(request.body).status; store.saveOrder?.(order); await flushStore(store); response.json({ data: order });
+  }));
   router.get('/admin/customers', requireAdmin, (_request, response) => response.json({ data: store.users.map((user) => store.publicUser(user)) }));
 
   return router;

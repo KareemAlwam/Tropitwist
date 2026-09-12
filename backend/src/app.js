@@ -8,9 +8,21 @@ import { MemoryStore } from './store/memory-store.js';
 export function createApp({ store = new MemoryStore() } = {}) {
   const app = express();
 
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
   const origins = env.FRONTEND_ORIGIN.split(',').map((origin) => origin.trim());
-  app.use(cors({ origin: origins, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Id', 'X-Admin-Key'] }));
+  app.use(cors({ origin: origins, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Id', 'X-CSRF-Token'] }));
+  app.use((_request, response, next) => {
+    response.set({
+      'Cross-Origin-Resource-Policy': 'same-site',
+      'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+    });
+    if (env.NODE_ENV === 'production') response.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+  });
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/api/v1/health', (_request, response) => {

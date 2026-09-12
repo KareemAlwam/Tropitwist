@@ -68,3 +68,6 @@ the frontend. The API server must use `FRONTEND_ORIGIN=https://kareemalwam.githu
 Copy `.env.production.example` to a private deployment environment; never commit
 the filled file. See [`backend/README.md`](backend/README.md#production-container)
 for the container command and required variables.
+
+GitHub Actions runs the frontend production build and backend API test suite on
+pull requests and pushes to `main` before the GitHub Pages deployment workflow.
