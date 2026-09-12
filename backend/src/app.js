@@ -10,7 +10,7 @@ export function createApp({ store = new MemoryStore() } = {}) {
 
   app.disable('x-powered-by');
   const origins = env.FRONTEND_ORIGIN.split(',').map((origin) => origin.trim());
-  app.use(cors({ origin: origins, credentials: false, allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Id', 'X-Admin-Key'] }));
+  app.use(cors({ origin: origins, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Id', 'X-Admin-Key'] }));
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/api/v1/health', (_request, response) => {

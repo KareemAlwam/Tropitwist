@@ -3,9 +3,11 @@ import StorefrontLayout from './app/StorefrontLayout';
 import { resolveStorefrontPage } from './app/routes';
 import { CartProvider } from './context/CartContext';
 import { ProductCatalogProvider } from './context/ProductCatalogContext';
+import { restoreSession } from './services/api';
 import { currentRoute } from './utils/routes';
 
 export default function App() {
+  useEffect(() => { restoreSession(); }, []);
   const pathname = currentRoute(window.location.pathname);
   const isAdminPage = pathname === '/admin';
   const Page = resolveStorefrontPage(pathname);
@@ -26,3 +28,4 @@ export default function App() {
     </ProductCatalogProvider>
   );
 }
+import { useEffect } from 'react';

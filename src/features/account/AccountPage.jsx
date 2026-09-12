@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { route } from '../../utils/routes';
-import { api, clearSession, getSession, setSession } from '../../services/api';
+import { api, clearSession, getSession, restoreSession, setSession } from '../../services/api';
 
 const initialForm = { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' };
 
@@ -11,6 +11,16 @@ export default function Account() {
   const [accountProfile, setAccountProfile] = useState(() => getSession()?.user || { firstName: '', lastName: '', email: '' });
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    restoreSession().then((savedSession) => {
+      if (!active || !savedSession) return;
+      setAccountProfile(savedSession.user);
+      setIsDashboard(true);
+    });
+    return () => { active = false; };
+  }, []);
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -42,7 +52,7 @@ export default function Account() {
         ? { firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim(), password: form.password }
         : { email: form.email.trim(), password: form.password };
       const data = await api(`/auth/${mode === 'register' ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify(payload) });
-      setSession({ token: data.token, user: data.user, expiresAt: data.expiresAt });
+      setSession(data);
       setAccountProfile(data.user);
       setIsDashboard(true);
     } catch (error) { setStatus(error.message); }
@@ -59,7 +69,8 @@ export default function Account() {
   return (
     <main className="max-w-6xl mx-auto px-4 py-12 md:py-20">
       {isDashboard ? (
-        <Dashboard profile={accountProfile} onProfileUpdate={setAccountProfile} onSignOut={() => {
+        <Dashboard profile={accountProfile} onProfileUpdate={setAccountProfile} onSignOut={async () => {
+          try { await api('/auth/logout', { method: 'POST', skipAuthRefresh: true }); } catch { /* Clear the local state even if the network is unavailable. */ }
           clearSession();
           setIsDashboard(false);
           setForm(initialForm);

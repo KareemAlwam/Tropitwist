@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { currentRoute, route } from '../../utils/routes';
-import { api, getSession } from '../../services/api';
+import { api, getSession, restoreSession } from '../../services/api';
 
 const CATEGORY_BACK_LINKS = {
   body: { href: '/body-care', label: 'BACK TO BODY CARE' },
@@ -112,7 +112,7 @@ export default function ProductDetail() {
               <button onClick={() => addToCart(product.id, quantity)} disabled={!inStock} className="min-h-12 flex-1 rounded-full bg-cherry px-4 py-3 text-xs font-bold tracking-widest text-cream hover:bg-ink transition-colors disabled:cursor-not-allowed disabled:opacity-40">
                 ADD TO CART · LE {product.price * quantity}
               </button>
-              <button type="button" onClick={async () => { if (!getSession()) { setSavedStatus('Sign in to save products.'); return; } try { await api('/wishlist/items', { method: 'POST', body: JSON.stringify({ productId: product.id }) }); setSavedStatus('Saved to wishlist.'); } catch (error) { setSavedStatus(error.message); } }} className="min-h-12 rounded-full border border-ink/20 px-4 py-3 text-[10px] font-bold tracking-widest hover:border-cherry hover:text-cherry">SAVE</button>
+              <button type="button" onClick={async () => { if (!(getSession() || await restoreSession())) { setSavedStatus('Sign in to save products.'); return; } try { await api('/wishlist/items', { method: 'POST', body: JSON.stringify({ productId: product.id }) }); setSavedStatus('Saved to wishlist.'); } catch (error) { setSavedStatus(error.message); } }} className="min-h-12 rounded-full border border-ink/20 px-4 py-3 text-[10px] font-bold tracking-widest hover:border-cherry hover:text-cherry">SAVE</button>
             </div>
             {savedStatus && <p role="status" className="mt-3 text-sm text-ink/65">{savedStatus}</p>}
             <div className="grid grid-cols-3 gap-2 mt-8 max-w-lg">

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { route } from '../../utils/routes';
 import { useCart } from '../../context/CartContext';
-import { api, getSession } from '../../services/api';
+import { api, restoreSession } from '../../services/api';
 
 export default function Wishlist() {
   const { addToCart } = useCart();
   const [items, setItems] = useState([]);
   const [status, setStatus] = useState('loading');
-  useEffect(() => { if (!getSession()) { setStatus('signed-out'); return; } api('/wishlist').then((data) => { setItems(data); setStatus('ready'); }).catch(() => setStatus('error')); }, []);
+  useEffect(() => { restoreSession().then((savedSession) => { if (!savedSession) { setStatus('signed-out'); return; } api('/wishlist').then((data) => { setItems(data); setStatus('ready'); }).catch(() => setStatus('error')); }); }, []);
   async function remove(id) { try { await api(`/wishlist/items/${id}`, { method: 'DELETE' }); setItems((current) => current.filter((item) => item.id !== id)); } catch { setStatus('error'); } }
   return (
     <main className="max-w-7xl mx-auto px-4 py-12 md:py-20">

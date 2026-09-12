@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { ApiError, asyncRoute } from '../lib/errors.js';
-import { createToken, hashPassword, verifyPassword } from '../lib/security.js';
+import { createAccessToken, createToken, hashPassword, verifyAccessToken, verifyPassword } from '../lib/security.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(8).max(128);
@@ -23,11 +23,34 @@ function bearerToken(request) {
   return kind?.toLowerCase() === 'bearer' && token ? token : null;
 }
 
+function refreshToken(request) {
+  return String(request.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith('tropitwist_refresh='))?.slice('tropitwist_refresh='.length) || null;
+}
+
+function setRefreshCookie(response, token, expiresAt) {
+  const parts = [`tropitwist_refresh=${token}`, 'HttpOnly', 'Path=/api', `Max-Age=${Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))}`, `SameSite=${env.NODE_ENV === 'production' ? 'None' : 'Lax'}`];
+  if (env.NODE_ENV === 'production') parts.push('Secure');
+  response.append('Set-Cookie', parts.join('; '));
+}
+
+function clearRefreshCookie(response) {
+  const parts = ['tropitwist_refresh=', 'HttpOnly', 'Path=/api', 'Max-Age=0', `SameSite=${env.NODE_ENV === 'production' ? 'None' : 'Lax'}`];
+  if (env.NODE_ENV === 'production') parts.push('Secure');
+  response.append('Set-Cookie', parts.join('; '));
+}
+
+function authenticationResponse(store, response, user) {
+  const token = createToken();
+  const refreshExpiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 86400000).toISOString();
+  store.createSession(user.id, token, refreshExpiresAt);
+  setRefreshCookie(response, token, refreshExpiresAt);
+  return { user, accessToken: createAccessToken(user, env.JWT_ACCESS_SECRET, env.ACCESS_TOKEN_TTL_MINUTES), accessExpiresAt: new Date(Date.now() + env.ACCESS_TOKEN_TTL_MINUTES * 60000).toISOString() };
+}
+
 function optionalUser(store) {
   return (request, _response, next) => {
-    const token = bearerToken(request);
-    request.authToken = token;
-    request.user = token ? store.userForToken(token) : null;
+    const claims = verifyAccessToken(bearerToken(request), env.JWT_ACCESS_SECRET);
+    request.user = claims ? store.publicUser(store.findUser(claims.sub)) : null;
     next();
   };
 }
@@ -117,24 +140,35 @@ export function createApiRouter(store) {
     const { password: rawPassword, ...profile } = input;
     const adminEmails = env.ADMIN_EMAILS.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
     const user = store.createUser({ ...profile, role: adminEmails.includes(profile.email) ? 'admin' : 'customer', passwordHash: hashPassword(rawPassword) });
-    const token = createToken();
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 86400000).toISOString();
-    store.createSession(user.id, token, expiresAt);
-    response.status(201).json({ data: { user, token, expiresAt } });
+    response.status(201).json({ data: authenticationResponse(store, response, user) });
   }));
 
   router.post('/auth/login', asyncRoute(async (request, response) => {
     const input = z.object({ email, password }).parse(request.body);
     const record = store.findUserByEmail(input.email);
     if (!record || !verifyPassword(input.password, record.passwordHash)) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
-    const token = createToken();
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_DAYS * 86400000).toISOString();
-    store.createSession(record.id, token, expiresAt);
+    const user = store.publicUser(record);
     if (request.get('x-cart-id')) store.mergeCart(`guest:${request.get('x-cart-id')}`, `user:${record.id}`);
-    response.json({ data: { user: store.publicUser(record), token, expiresAt } });
+    response.json({ data: authenticationResponse(store, response, user) });
   }));
 
-  router.post('/auth/logout', requireUser, (request, response) => { store.deleteSession(request.authToken); response.status(204).end(); });
+  router.post('/auth/refresh', (request, response) => {
+    const token = refreshToken(request);
+    const user = token ? store.userForToken(token) : null;
+    if (!user) {
+      clearRefreshCookie(response);
+      throw new ApiError(401, 'UNAUTHORIZED', 'Sign in to continue.');
+    }
+    store.deleteSession(token);
+    response.json({ data: authenticationResponse(store, response, user) });
+  });
+
+  router.post('/auth/logout', (request, response) => {
+    const token = refreshToken(request);
+    if (token) store.deleteSession(token);
+    clearRefreshCookie(response);
+    response.status(204).end();
+  });
   router.get('/me', requireUser, (request, response) => response.json({ data: request.user }));
   router.patch('/me', requireUser, (request, response) => {
     const input = z.object({ firstName: z.string().trim().min(1).max(80).optional(), lastName: z.string().trim().min(1).max(80).optional() }).parse(request.body);

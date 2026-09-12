@@ -13,7 +13,7 @@ async function withApi(run) {
       body: options.body && typeof options.body !== 'string' ? JSON.stringify(options.body) : options.body,
     });
     const text = await response.text();
-    return { status: response.status, body: text ? JSON.parse(text) : null };
+    return { status: response.status, body: text ? JSON.parse(text) : null, headers: response.headers };
   };
   try { await run(request); } finally { await new Promise((resolve) => server.close(resolve)); }
 }
@@ -33,7 +33,9 @@ test('accounts issue sessions and protect customer data', () => withApi(async (r
   assert.equal(registration.status, 201);
   assert.equal(registration.body.data.user.email, 'mona@example.com');
   assert.equal('passwordHash' in registration.body.data.user, false);
-  const token = registration.body.data.token;
+  const token = registration.body.data.accessToken;
+  assert.equal(typeof token, 'string');
+  assert.match(registration.headers.get('set-cookie'), /HttpOnly/);
   assert.equal((await request('/api/v1/me')).status, 401);
   const me = await request('/api/v1/me', { headers: { authorization: `Bearer ${token}` } });
   assert.equal(me.status, 200);
@@ -44,7 +46,7 @@ test('accounts issue sessions and protect customer data', () => withApi(async (r
 
 test('authenticated checkout ignores client-supplied prices', () => withApi(async (request) => {
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
-  const headers = { authorization: `Bearer ${registration.body.data.token}` };
+  const headers = { authorization: `Bearer ${registration.body.data.accessToken}` };
   const added = await request('/api/v1/cart/items', { method: 'POST', headers, body: { productId: 'p1', quantity: 2 } });
   assert.equal(added.status, 201);
   assert.equal(added.body.data.subtotal, 700);
@@ -69,14 +71,31 @@ test('checkout requires an account and rejects excessive stock', () => withApi(a
   const anonymous = await request('/api/v1/orders', { method: 'POST', body: {} });
   assert.equal(anonymous.status, 401);
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
-  const stock = await request('/api/v1/checkout/session', { method: 'POST', headers: { authorization: `Bearer ${registration.body.data.token}` }, body: { items: [{ productId: 'b1', quantity: 20 }] } });
+  const stock = await request('/api/v1/checkout/session', { method: 'POST', headers: { authorization: `Bearer ${registration.body.data.accessToken}` }, body: { items: [{ productId: 'b1', quantity: 20 }] } });
   assert.equal(stock.status, 409);
   assert.equal(stock.body.error.code, 'INSUFFICIENT_STOCK');
 }));
 
 test('admin dashboard rejects a regular customer', () => withApi(async (request) => {
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
-  const dashboard = await request('/api/admin/dashboard', { headers: { authorization: `Bearer ${registration.body.data.token}` } });
+  const dashboard = await request('/api/admin/dashboard', { headers: { authorization: `Bearer ${registration.body.data.accessToken}` } });
   assert.equal(dashboard.status, 403);
   assert.equal(dashboard.body.error.code, 'FORBIDDEN');
+}));
+
+test('refresh tokens rotate in an HttpOnly cookie and logout revokes the session', () => withApi(async (request) => {
+  const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
+  const firstCookie = registration.headers.get('set-cookie').split(';')[0];
+  const refresh = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie } });
+  assert.equal(refresh.status, 200);
+  const secondCookie = refresh.headers.get('set-cookie').split(';')[0];
+  assert.notEqual(secondCookie, firstCookie);
+  const staleRefresh = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: firstCookie } });
+  assert.equal(staleRefresh.status, 401);
+  const me = await request('/api/v1/me', { headers: { authorization: `Bearer ${refresh.body.data.accessToken}` } });
+  assert.equal(me.status, 200);
+  const logout = await request('/api/v1/auth/logout', { method: 'POST', headers: { cookie: secondCookie } });
+  assert.equal(logout.status, 204);
+  const revoked = await request('/api/v1/auth/refresh', { method: 'POST', headers: { cookie: secondCookie } });
+  assert.equal(revoked.status, 401);
 }));

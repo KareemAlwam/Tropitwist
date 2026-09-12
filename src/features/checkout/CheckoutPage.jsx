@@ -3,7 +3,7 @@ import { useCart } from '../../context/CartContext';
 import { route } from '../../utils/routes';
 import { calculateOrderTotals } from '../../utils/order';
 import { validateCheckout, withoutPaymentDetails } from './validation';
-import { api, getSession } from '../../services/api';
+import { api, getSession, restoreSession } from '../../services/api';
 
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCart();
@@ -19,16 +19,18 @@ export default function Checkout() {
   const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
-    if (!getSession()) return;
-    api('/addresses').then((addresses) => {
-      setSavedAddresses(addresses);
-      if (addresses[0]) {
-        setSavedAddress(addresses[0]);
-        setSelectedAddressId(addresses[0].id);
-        setRememberAddress(true);
-        setFormVersion((version) => version + 1);
-      }
-    }).catch(() => setSavedAddress({}));
+    restoreSession().then((savedSession) => {
+      if (!savedSession) return;
+      return api('/addresses').then((addresses) => {
+        setSavedAddresses(addresses);
+        if (addresses[0]) {
+          setSavedAddress(addresses[0]);
+          setSelectedAddressId(addresses[0].id);
+          setRememberAddress(true);
+          setFormVersion((version) => version + 1);
+        }
+      }).catch(() => setSavedAddress({}));
+    });
   }, []);
 
   async function handleSubmit(event) {
@@ -41,7 +43,7 @@ export default function Checkout() {
       setValidationError('Please correct the highlighted fields.');
       return;
     }
-    if (!getSession()) {
+    if (!(getSession() || await restoreSession())) {
       setValidationError('Sign in to place an order.');
       return;
     }
