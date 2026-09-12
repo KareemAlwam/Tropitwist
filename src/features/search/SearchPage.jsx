@@ -37,7 +37,7 @@ export default function Search() {
       if (sort === 'price-high') return b.price - a.price;
       return Number(b.featured) - Number(a.featured);
     });
-  }, [activeFilter, normalizedQuery, sort]);
+  }, [activeFilter, normalizedQuery, products, sort]);
 
   return (
     <main>
