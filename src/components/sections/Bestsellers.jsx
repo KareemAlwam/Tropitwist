@@ -1,9 +1,11 @@
-import { products } from '../../data/products';
 import { useCart } from '../../context/CartContext';
+import { useProductCatalog } from '../../context/ProductCatalogContext';
 import { route } from '../../utils/routes';
 
 export default function Bestsellers() {
   const { addToCart } = useCart();
+  const { products, status } = useProductCatalog();
+  const featuredProducts = products.filter((product) => product.featured !== false).slice(0, 3);
   return (
     <section className="py-16 md:py-24 bg-cream">
       <div className="max-w-7xl mx-auto px-4">
@@ -15,8 +17,8 @@ export default function Bestsellers() {
           <a href={route('/search')} className="hidden md:inline font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors">VIEW ALL PRODUCTS →</a>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
-          {products.filter((product) => product.featured !== false).map((product) => (
-            <article key={product.id} className="group motion-rise" style={{ animationDelay: `${(products.indexOf(product) + 1) * 100}ms` }}>
+          {status === 'loading' ? <p className="text-sm text-ink/65">Loading products...</p> : featuredProducts.map((product, index) => (
+            <article key={product.id} className="group motion-rise" style={{ animationDelay: `${(index + 1) * 100}ms` }}>
               <a href={route(`/products/${product.id}`)} className="block product-tile rounded-brand aspect-[4/5] relative overflow-hidden mb-4 soft-shadow">
                 {product.bestseller && (
                   <span className="absolute top-5 left-5 bg-cherry text-cream rounded-full px-3 py-1 text-[9px] font-bold tracking-widest">BESTSELLER</span>

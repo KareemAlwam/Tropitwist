@@ -24,7 +24,11 @@ export default function CollectionPage({ config }) {
       </section>
       <section className="mx-auto max-w-7xl px-4 py-8 md:py-12">
         <CollectionControls filters={config.filters} state={state} placeholder={config.searchPlaceholder} />
-        {state.items.length ? (
+        {state.status === 'loading' ? (
+          <div className="rounded-brand bg-banana p-10 text-center"><p className="text-sm text-ink/65">Loading products...</p></div>
+        ) : state.status === 'error' ? (
+          <div className="rounded-brand bg-banana p-10 text-center"><p className="text-sm text-ink/65">{state.error}</p></div>
+        ) : state.items.length ? (
           <div className="grid grid-cols-1 gap-x-5 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
             {state.items.map((product, index) => (
               <ProductCard

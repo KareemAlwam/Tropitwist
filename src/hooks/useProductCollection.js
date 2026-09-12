@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { products } from '../data/products';
+import { useProductCatalog } from '../context/ProductCatalogContext';
 
 export function useProductCollection({ category, allFilter }) {
+  const { products, status, error } = useProductCatalog();
   const [activeFilter, setActiveFilter] = useState(allFilter);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('featured');
@@ -10,5 +11,5 @@ export function useProductCollection({ category, allFilter }) {
     const filtered = products.filter((product) => product.category === category && (activeFilter === allFilter || product.type === activeFilter.toLowerCase()) && `${product.name} ${product.description}`.toLowerCase().includes(normalizedQuery));
     return [...filtered].sort((a, b) => sort === 'price-low' ? a.price - b.price : sort === 'price-high' ? b.price - a.price : Number(b.featured) - Number(a.featured));
   }, [activeFilter, allFilter, category, query, sort]);
-  return { activeFilter, items, query, setActiveFilter, setQuery, setSort, sort };
+  return { activeFilter, error, items, query, setActiveFilter, setQuery, setSort, sort, status };
 }
