@@ -78,6 +78,11 @@ function cartOwner(request) {
   return `guest:${guestId}`;
 }
 
+function guestCartOwner(request) {
+  const guestId = request.get('x-cart-id');
+  return guestId && /^[A-Za-z0-9_-]{8,100}$/.test(guestId) ? `guest:${guestId}` : null;
+}
+
 function publicProduct(product) {
   const { inventory, ...result } = product;
   return { ...result, available: product.status === 'active' && inventory > 0, inventory };
@@ -254,6 +259,8 @@ export function createApiRouter(store) {
     const owner = cartOwner(request);
     validateInventory(store, input.items);
     store.setCart(owner, input.items);
+    const guestOwner = request.user && guestCartOwner(request);
+    if (guestOwner) store.setCart(guestOwner, []);
     await flushStore(store);
     response.json({ data: expandedCart(store, owner) });
   }));

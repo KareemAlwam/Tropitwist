@@ -77,12 +77,12 @@ export default function Checkout() {
       }
       if (paymentMethod === 'paymob-card') {
         const payment = await api('/payments/paymob/checkout', { method: 'POST', body: JSON.stringify(orderPayload) });
-        clearCart();
+        await clearCart();
         window.location.assign(payment.checkoutUrl);
         return;
       }
       await api('/orders', { method: 'POST', body: JSON.stringify(orderPayload) });
-      clearCart();
+      await clearCart();
       setSubmitted(true);
     } catch (error) {
       setFieldErrors(error.details || {});

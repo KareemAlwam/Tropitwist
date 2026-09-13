@@ -64,6 +64,11 @@ test('desktop customer flow validates fields and places a COD order', async ({ p
   await page.getByRole('button', { name: /PLACE ORDER/ }).click();
   await expect(page.getByText('Your order has been placed. You can view it in your account dashboard.')).toBeVisible();
 
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Cart, 0 items' })).toBeVisible();
+  await page.goto('/cart');
+  await expect(page.getByRole('heading', { name: 'YOUR BAG IS GLOWINGLY EMPTY.' })).toBeVisible();
+
   await page.goto('/account');
   await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('account-dashboard.png'), fullPage: true });

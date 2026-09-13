@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { readStorage, writeStorage } from '../services/storage';
-import { api, cartHeaders } from '../services/api';
+import { api, cartHeaders, restoreSession } from '../services/api';
 import { useProductCatalog } from './ProductCatalogContext';
 
 const STORAGE_KEY = 'tropitwist-cart';
@@ -26,13 +26,24 @@ export function CartProvider({ children }) {
   const [cart, setCart] = useState(readStoredCart);
   const [lastAddedItem, setLastAddedItem] = useState(null);
   const [serverCartReady, setServerCartReady] = useState(false);
+  const cartSyncQueue = useRef(Promise.resolve());
   const { products, status: catalogStatus, error: catalogError } = useProductCatalog();
 
   useEffect(() => {
     writeStorage(STORAGE_KEY, cart);
   }, [cart]);
 
+  const queueServerCart = useCallback((nextCart) => {
+    const items = nextCart.map((item) => ({ ...item }));
+    const sync = cartSyncQueue.current.catch(() => {}).then(() => api('/cart', {
+      method: 'PUT', headers: cartHeaders(), body: JSON.stringify({ items }),
+    }));
+    cartSyncQueue.current = sync;
+    return sync.catch(() => {});
+  }, []);
+
   const loadServerCart = useCallback(async () => {
+    await restoreSession();
     const data = await api('/cart', { headers: cartHeaders() });
     setCart((current) => mergeCartItems(current, cartFromApi(data)));
     setServerCartReady(true);
@@ -55,8 +66,8 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     if (!serverCartReady) return;
-    api('/cart', { method: 'PUT', headers: cartHeaders(), body: JSON.stringify({ items: cart }) }).catch(() => {});
-  }, [cart, serverCartReady]);
+    queueServerCart(cart);
+  }, [cart, queueServerCart, serverCartReady]);
 
   const items = useMemo(
     () =>
@@ -104,8 +115,12 @@ export function CartProvider({ children }) {
     removeFromCart: (productId) => {
       setCart((current) => current.filter((item) => item.productId !== productId));
     },
-    clearCart: () => setCart([]),
-  }), [cart, catalogError, catalogStatus, items, lastAddedItem, products]);
+    clearCart: () => {
+      setCart([]);
+      writeStorage(STORAGE_KEY, []);
+      return serverCartReady ? queueServerCart([]) : Promise.resolve();
+    },
+  }), [cart, catalogError, catalogStatus, items, lastAddedItem, products, queueServerCart, serverCartReady]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
