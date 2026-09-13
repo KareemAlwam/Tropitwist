@@ -1,15 +1,16 @@
 # Tropitwist Vercel Staging
 
-Deploy two Vercel projects from the same GitHub repository. This supports the
-free staging phase. Vercel Hobby is not the final commercial hosting plan for a
-store that accepts payments.
+Deploy the frontend and API as Vercel Services from one GitHub project. The
+frontend serves `/` and Express serves `/api`, so account cookies stay on one
+origin. This supports the free staging phase. Vercel Hobby is not the final
+commercial hosting plan for a store that accepts payments.
 
-## API Project
+## Create the Project
 
 1. In Vercel, import `KareemAlwam/Tropitwist` as a new project.
-2. Set **Root Directory** to `backend`.
-3. Leave framework detection enabled. Vercel uses `src/index.js` as the Express
-   function entry point.
+2. Leave **Root Directory** as the repository root and select the **Services**
+   framework preset.
+3. Vercel reads `vercel.json` and detects Vite at `/` and Express at `/api`.
 4. Add these production environment variables directly in Vercel:
 
 ```dotenv
@@ -20,28 +21,16 @@ ADMIN_EMAILS=<your email address>
 JWT_ACCESS_SECRET=<a private random value of at least 32 characters>
 ```
 
-5. Deploy and copy its `https://<api-project>.vercel.app` URL.
-
-## Frontend Project
-
-1. Import the same repository as a second Vercel project.
-2. Keep **Root Directory** empty.
-3. Set the framework to Vite if it is not detected automatically.
-4. Add this production variable:
-
-```dotenv
-VITE_API_BASE_URL=https://<api-project>.vercel.app
-```
-
-5. Deploy and copy its `https://<storefront-project>.vercel.app` URL.
+`VITE_API_BASE_URL` is not needed: the browser calls the API on the same Vercel
+origin at `/api`.
 
 ## Connect and Test
 
-1. Update the API project's `FRONTEND_ORIGIN` to the exact frontend Vercel URL.
-2. Redeploy the API project.
-3. Open the frontend URL and test catalog, guest cart, account, COD checkout,
+1. Deploy, then open the single `https://<project>.vercel.app` URL.
+2. Update `FRONTEND_ORIGIN` to that exact Vercel URL and redeploy.
+3. Test catalog, guest cart, account, COD checkout,
    order dashboard, and admin dashboard.
 
-When the domain is ready, deploy the frontend at `tropitwist.store` and API at
-`api.tropitwist.store`, then update `VITE_API_BASE_URL` and `FRONTEND_ORIGIN`.
-Add Paymob variables only after the API has its custom HTTPS domain.
+When the domain is ready, point `tropitwist.store` to this Vercel project and
+update `FRONTEND_ORIGIN`. Add Paymob variables only after the custom HTTPS domain
+is active.
