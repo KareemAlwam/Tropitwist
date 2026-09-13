@@ -32,8 +32,8 @@ export function cartHeaders() {
   return { 'X-Cart-Id': guestCartId };
 }
 
-export async function restoreSession() {
-  if (session) return session;
+export async function restoreSession(forceRefresh = false) {
+  if (session && !forceRefresh) return session;
   if (!refreshInFlight) {
     refreshInFlight = loadCsrfToken().then((token) => token && send('/api/v1/auth/refresh', { method: 'POST' }))
       .then(async (response) => {
@@ -60,8 +60,12 @@ async function request(path, options = {}) {
   const { skipAuthRefresh = false } = options;
   let response = await send(path, options);
   if (response.status === 401 && !skipAuthRefresh && !path.endsWith('/auth/refresh') && !path.endsWith('/auth/login') && !path.endsWith('/auth/register')) {
-    const restored = await restoreSession();
-    if (restored) response = await send(path, options);
+    const restored = await restoreSession(true);
+    if (restored) {
+      response = await send(path, options);
+    } else {
+      clearSession();
+    }
   }
 
   const body = response.status === 204 ? null : await response.json();

@@ -6,9 +6,11 @@ const initialForm = { firstName: '', lastName: '', email: '', password: '', conf
 
 export default function Account() {
   const [mode, setMode] = useState('login');
-  const [isDashboard, setIsDashboard] = useState(() => Boolean(getSession()));
+  const existingSession = getSession();
+  const [isDashboard, setIsDashboard] = useState(() => Boolean(existingSession));
+  const [isRestoringSession, setIsRestoringSession] = useState(() => !existingSession);
   const [form, setForm] = useState(initialForm);
-  const [accountProfile, setAccountProfile] = useState(() => getSession()?.user || { firstName: '', lastName: '', email: '' });
+  const [accountProfile, setAccountProfile] = useState(() => existingSession?.user || { firstName: '', lastName: '', email: '' });
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState('');
   const continueToCheckout = new URLSearchParams(window.location.search).get('next') === 'checkout';
@@ -16,9 +18,12 @@ export default function Account() {
   useEffect(() => {
     let active = true;
     restoreSession().then((savedSession) => {
-      if (!active || !savedSession) return;
-      setAccountProfile(savedSession.user);
-      setIsDashboard(true);
+      if (!active) return;
+      if (savedSession) {
+        setAccountProfile(savedSession.user);
+        setIsDashboard(true);
+      }
+      setIsRestoringSession(false);
     });
     return () => { active = false; };
   }, []);
@@ -70,7 +75,11 @@ export default function Account() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-12 md:py-20">
-      {isDashboard ? (
+      {isRestoringSession ? (
+        <section className="mx-auto max-w-2xl rounded-brand bg-[#FFF1D8] p-10 text-center" role="status">
+          <p className="text-sm text-ink/60">Loading your account...</p>
+        </section>
+      ) : isDashboard ? (
         <Dashboard profile={accountProfile} onProfileUpdate={setAccountProfile} onSignOut={async () => {
           try { await api('/auth/logout', { method: 'POST', skipAuthRefresh: true }); } catch { /* Clear the local state even if the network is unavailable. */ }
           clearSession();
