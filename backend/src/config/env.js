@@ -2,12 +2,16 @@ import 'dotenv/config';
 import { z } from 'zod';
 
 const optional = (schema) => z.preprocess((value) => value === '' ? undefined : value, schema.optional());
+const frontendOrigins = z.string().min(1).refine(
+  (value) => value.split(',').every((origin) => z.string().url().safeParse(origin.trim()).success),
+  'FRONTEND_ORIGIN must be one or more comma-separated URLs.',
+);
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   DATABASE_URL: z.string().url().optional(),
-  FRONTEND_ORIGIN: z.string().url().default('http://localhost:5174'),
+  FRONTEND_ORIGIN: frontendOrigins.default('http://localhost:5174'),
   ADMIN_EMAILS: z.string().default(''),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(60).default(15),

@@ -44,6 +44,28 @@ test('accounts issue sessions and protect customer data', () => withApi(async (r
   assert.equal(duplicate.status, 409);
 }));
 
+test('a guest cart is retained when an account is created', () => withApi(async (request) => {
+  const guestHeaders = { 'x-cart-id': 'guestcart123456' };
+  const guestCart = await request('/api/v1/cart', {
+    method: 'PUT',
+    headers: guestHeaders,
+    body: { items: [{ productId: 'p1', quantity: 1 }] },
+  });
+  assert.equal(guestCart.status, 200);
+  assert.equal(guestCart.body.data.itemCount, 1);
+
+  const registration = await request('/api/v1/auth/register', {
+    method: 'POST',
+    headers: guestHeaders,
+    body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' },
+  });
+  assert.equal(registration.status, 201);
+  const cart = await request('/api/v1/cart', { headers: { authorization: `Bearer ${registration.body.data.accessToken}` } });
+  assert.equal(cart.status, 200);
+  assert.equal(cart.body.data.itemCount, 1);
+  assert.equal(cart.body.data.items[0].product.id, 'p1');
+}));
+
 test('authenticated checkout ignores client-supplied prices', () => withApi(async (request) => {
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
   const headers = { authorization: `Bearer ${registration.body.data.accessToken}` };

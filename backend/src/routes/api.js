@@ -177,6 +177,7 @@ export function createApiRouter(store) {
     const { password: rawPassword, ...profile } = input;
     const adminEmails = env.ADMIN_EMAILS.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
     const user = store.createUser({ ...profile, role: adminEmails.includes(profile.email) ? 'admin' : 'customer', passwordHash: hashPassword(rawPassword) });
+    if (request.get('x-cart-id')) store.mergeCart(`guest:${request.get('x-cart-id')}`, `user:${user.id}`);
     const data = authenticationResponse(store, response, user);
     await flushStore(store);
     response.status(201).json({ data });
@@ -248,6 +249,14 @@ export function createApiRouter(store) {
   }));
 
   router.get('/cart', (request, response) => response.json({ data: expandedCart(store, cartOwner(request)) }));
+  router.put('/cart', asyncRoute(async (request, response) => {
+    const input = z.object({ items: z.array(itemSchema).max(50) }).parse(request.body);
+    const owner = cartOwner(request);
+    validateInventory(store, input.items);
+    store.setCart(owner, input.items);
+    await flushStore(store);
+    response.json({ data: expandedCart(store, owner) });
+  }));
   router.post('/cart/items', asyncRoute(async (request, response) => {
     const input = itemSchema.parse(request.body); const owner = cartOwner(request);
     const product = store.products.find((item) => item.id === input.productId && item.status === 'active');

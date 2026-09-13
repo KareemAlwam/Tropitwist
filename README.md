@@ -60,14 +60,14 @@ setup, routes, authentication, and test commands.
 
 ## Production deployment
 
-The GitHub Pages site is the frontend only. Deploy the Express API and PostgreSQL
-from `docker-compose.production.yml` to a server or container host, then set the
-repository variable `VITE_API_BASE_URL` to the public API origin before building
-the frontend. The API server must use `FRONTEND_ORIGIN=https://kareemalwam.github.io`.
+The recommended MVP deployment uses Cloudflare Pages for the React storefront,
+Render for the Express API, and Neon for PostgreSQL. It starts with free tiers;
+upgrade only the Render API when the storefront is ready for real visitors.
 
-Copy `.env.production.example` to a private deployment environment; never commit
-the filled file. See [`backend/README.md`](backend/README.md#production-container)
-for the container command and required variables.
+Follow [`docs/hosted-production-deployment.md`](docs/hosted-production-deployment.md).
+It covers provider setup, environment variables, DNS, Paymob callbacks, and the
+production smoke test. The Docker Compose configuration remains available for a
+future single-VPS deployment.
 
 GitHub Actions runs the frontend production build and backend API test suite on
-pull requests and pushes to `main` before the GitHub Pages deployment workflow.
+pull requests and pushes to `main`.

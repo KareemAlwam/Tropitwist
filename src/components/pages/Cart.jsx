@@ -1,4 +1,5 @@
 import { useCart } from '../../context/CartContext';
+import { getSession } from '../../services/api';
 import { route } from '../../utils/routes';
 import { FREE_SHIPPING_THRESHOLD, calculateOrderTotals } from '../../utils/order';
 
@@ -6,6 +7,8 @@ export default function Cart() {
   const { items, subtotal, updateQuantity, removeFromCart, itemCount, catalogStatus, catalogError } = useCart();
   const { shipping, total } = calculateOrderTotals(subtotal);
   const freeShippingRemaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+  const isSignedIn = Boolean(getSession());
+  const checkoutPath = isSignedIn ? '/checkout' : '/account?next=checkout';
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-10 md:py-16">
@@ -60,7 +63,7 @@ export default function Cart() {
             <p className="text-xs text-ink/65 mt-4">
               {shipping ? `Add LE ${freeShippingRemaining} more for free delivery.` : 'You unlocked free delivery.'}
             </p>
-            <a href={route('/checkout')} className="block text-center w-full mt-7 rounded-full bg-cherry text-cream py-4 text-xs font-bold tracking-widest hover:bg-ink transition-colors">PROCEED TO CHECKOUT</a>
+            <a href={route(checkoutPath)} className="block text-center w-full mt-7 rounded-full bg-cherry text-cream py-4 text-xs font-bold tracking-widest hover:bg-ink transition-colors">{isSignedIn ? 'PROCEED TO CHECKOUT' : 'SIGN IN TO CHECKOUT'}</a>
             <a href={route('/search')} className="block text-center mt-5 text-[10px] font-bold tracking-widest hover:text-cherry">CONTINUE SHOPPING</a>
           </aside>
         </div>

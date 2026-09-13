@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { route } from '../../utils/routes';
-import { api, clearSession, getSession, restoreSession, setSession } from '../../services/api';
+import { api, cartHeaders, clearSession, getSession, restoreSession, setSession } from '../../services/api';
 
 const initialForm = { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' };
 
@@ -11,6 +11,7 @@ export default function Account() {
   const [accountProfile, setAccountProfile] = useState(() => getSession()?.user || { firstName: '', lastName: '', email: '' });
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState('');
+  const continueToCheckout = new URLSearchParams(window.location.search).get('next') === 'checkout';
 
   useEffect(() => {
     let active = true;
@@ -51,10 +52,11 @@ export default function Account() {
       const payload = mode === 'register'
         ? { firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim(), password: form.password }
         : { email: form.email.trim(), password: form.password };
-      const data = await api(`/auth/${mode === 'register' ? 'register' : 'login'}`, { method: 'POST', body: JSON.stringify(payload) });
+      const data = await api(`/auth/${mode === 'register' ? 'register' : 'login'}`, { method: 'POST', headers: cartHeaders(), body: JSON.stringify(payload) });
       setSession(data);
       setAccountProfile(data.user);
       setIsDashboard(true);
+      if (continueToCheckout) window.location.assign(route('/checkout'));
     } catch (error) { setStatus(error.message); }
   }
 

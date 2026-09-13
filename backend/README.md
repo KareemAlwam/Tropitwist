@@ -35,7 +35,7 @@ compatibility prefix for the current frontend admin screen.
 - `POST /auth/register`, `POST /auth/login`, `GET /auth/csrf`, `POST /auth/refresh`, `POST /auth/logout`
 - `GET /me`, `PATCH /me`
 - `GET|POST /addresses`, `PATCH|DELETE /addresses/:id`
-- `GET /cart`, `POST /cart/items`, `PATCH|DELETE /cart/items/:productId`
+- `GET|PUT /cart`, `POST /cart/items`, `PATCH|DELETE /cart/items/:productId`
 - `POST /checkout/session`
 - `POST /orders`, `GET /orders`, `GET /orders/:id`
 - `GET /payments/methods`, `POST /payments/paymob/checkout`, `POST /payments/paymob/webhook`
@@ -78,6 +78,10 @@ Authentication routes are rate limited, and the API sends baseline security head
 on every response.
 
 ## Production container
+
+For the recommended Cloudflare Pages, Render, and Neon MVP deployment, follow
+[`../docs/hosted-production-deployment.md`](../docs/hosted-production-deployment.md).
+The Docker setup below is an alternative for a single VPS.
 
 `../docker-compose.production.yml` starts PostgreSQL and the API together. Copy
 `../.env.production.example` to `.env.production`, replace every placeholder, then

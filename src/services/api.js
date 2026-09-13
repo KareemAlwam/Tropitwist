@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : 'http://localhost:4000');
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const SESSION_KEY = 'tropitwist-session';
+const GUEST_CART_KEY = 'tropitwist-guest-cart-id';
 let session = null;
 let refreshInFlight = null;
 let csrfToken = null;
@@ -12,12 +13,23 @@ export function setSession(nextSession) {
   session = nextSession;
   csrfToken = nextSession.csrfToken || csrfToken;
   localStorage.removeItem(SESSION_KEY);
+  window.dispatchEvent(new Event('tropitwist-session-change'));
 }
 
 export function clearSession() {
   session = null;
   csrfToken = null;
   localStorage.removeItem(SESSION_KEY);
+  window.dispatchEvent(new Event('tropitwist-session-change'));
+}
+
+export function cartHeaders() {
+  let guestCartId = localStorage.getItem(GUEST_CART_KEY);
+  if (!guestCartId) {
+    guestCartId = window.crypto?.randomUUID?.().replaceAll('-', '') || `guest${Date.now()}${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(GUEST_CART_KEY, guestCartId);
+  }
+  return { 'X-Cart-Id': guestCartId };
 }
 
 export async function restoreSession() {

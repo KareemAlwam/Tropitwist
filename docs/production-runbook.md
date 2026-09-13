@@ -1,6 +1,8 @@
-# Tropitwist Production Runbook
+# Tropitwist VPS Production Runbook
 
-Use this runbook to deploy the Express API and PostgreSQL database. GitHub Pages hosts only the React frontend.
+Use this runbook only when deploying the Express API and PostgreSQL database to
+one self-managed VPS. For the current Cloudflare Pages, Render, and Neon plan,
+follow [Hosted Production Deployment](hosted-production-deployment.md).
 
 ## Prerequisites
 
