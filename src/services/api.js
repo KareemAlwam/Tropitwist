@@ -35,9 +35,9 @@ export function cartHeaders() {
 export async function restoreSession() {
   if (session) return session;
   if (!refreshInFlight) {
-    refreshInFlight = loadCsrfToken().then(() => send('/api/v1/auth/refresh', { method: 'POST' }))
+    refreshInFlight = loadCsrfToken().then((token) => token && send('/api/v1/auth/refresh', { method: 'POST' }))
       .then(async (response) => {
-        if (!response.ok) return null;
+        if (!response?.ok) return null;
         const body = await response.json();
         setSession(body.data);
         return getSession();

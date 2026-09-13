@@ -66,7 +66,7 @@ export function CartProvider({ children }) {
           return product ? { product, quantity } : null;
         })
         .filter(Boolean),
-    [cart],
+    [cart, products],
   );
 
   const value = useMemo(() => ({

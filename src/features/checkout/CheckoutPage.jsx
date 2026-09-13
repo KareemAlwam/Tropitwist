@@ -102,6 +102,17 @@ export default function Checkout() {
     );
   }
 
+  if (submitted) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <p className="motion-rise text-[10px] font-bold tracking-[0.2em] text-cherry mb-3">ORDER CONFIRMED</p>
+        <h1 className="motion-reveal font-display font-bold text-ink text-5xl leading-none">THANK YOU.</h1>
+        <p className="mt-5 rounded-brand bg-banana p-4 text-sm text-ink">Your order has been placed. You can view it in your account dashboard.</p>
+        <a href={route('/account')} className="inline-block mt-8 rounded-full bg-ink text-cream px-7 py-4 text-xs font-bold tracking-widest hover:bg-cherry transition-colors">VIEW YOUR ORDERS</a>
+      </main>
+    );
+  }
+
   if (!items.length) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-16 text-center">
@@ -177,7 +188,6 @@ export default function Checkout() {
             {paymentMethod === 'paymob-card' ? 'CONTINUE TO SECURE PAYMENT' : `PLACE ORDER · LE ${total}`}
           </button>
           {validationError && <p role="alert" className="rounded-brand bg-cherry/10 p-4 text-sm text-cherry">{validationError}</p>}
-          {submitted && <p className="rounded-brand bg-banana p-4 text-sm text-ink">Your order has been placed. You can view it in your account dashboard.</p>}
         </form>
 
         <aside className="card-enter motion-delay-2 rounded-brand bg-[#FFF1D8] p-6 md:p-8 lg:sticky lg:top-28">
