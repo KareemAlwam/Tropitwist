@@ -9,9 +9,15 @@ import { createPaymobCheckout, verifyPaymobCallback } from '../services/paymob.j
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(8).max(128);
 const id = z.string().min(1).max(100);
+const phone = z.string().trim().transform((value) => {
+  const compact = value.replace(/[\s()-]/g, '');
+  if (compact.startsWith('+20')) return `0${compact.slice(3)}`;
+  if (compact.startsWith('0020')) return `0${compact.slice(4)}`;
+  return compact;
+}).pipe(z.string().regex(/^01[0125]\d{8}$/, 'Enter a valid Egyptian mobile number.'));
 const addressSchema = z.object({
   firstName: z.string().trim().min(1).max(80), lastName: z.string().trim().min(1).max(80),
-  phone: z.string().trim().min(8).max(30), address: z.string().trim().min(4).max(250),
+  phone, address: z.string().trim().min(4).max(250),
   city: z.string().trim().min(1).max(100), area: z.string().trim().min(1).max(100),
   label: z.string().trim().max(40).default('Home'),
 });

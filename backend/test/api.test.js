@@ -96,6 +96,11 @@ test('checkout requires an account and rejects excessive stock', () => withApi(a
   const anonymous = await request('/api/v1/orders', { method: 'POST', body: {} });
   assert.equal(anonymous.status, 401);
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });
+  const invalidPhone = await request('/api/v1/orders', {
+    method: 'POST', headers: { authorization: `Bearer ${registration.body.data.accessToken}` },
+    body: { customer: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', phone: '12345678', address: '12 Nile Street', city: 'Cairo', area: 'Dokki' }, paymentMethod: 'cash-on-delivery', items: [{ productId: 'p1', quantity: 1 }] },
+  });
+  assert.equal(invalidPhone.status, 422);
   const stock = await request('/api/v1/checkout/session', { method: 'POST', headers: { authorization: `Bearer ${registration.body.data.accessToken}` }, body: { items: [{ productId: 'b1', quantity: 20 }] } });
   assert.equal(stock.status, 409);
   assert.equal(stock.body.error.code, 'INSUFFICIENT_STOCK');

@@ -8,13 +8,24 @@ const requiredFields = {
   area: 'Enter your area.',
 };
 
+function normalizePhone(value) {
+  const compact = String(value || '').replace(/[\s()-]/g, '');
+  if (compact.startsWith('+20')) return `0${compact.slice(3)}`;
+  if (compact.startsWith('0020')) return `0${compact.slice(4)}`;
+  return compact;
+}
+
+export function isEgyptianMobileNumber(value) {
+  return /^01[0125]\d{8}$/.test(normalizePhone(value));
+}
+
 export function validateCheckout(values) {
   const errors = {};
   Object.entries(requiredFields).forEach(([field, message]) => {
     if (!String(values[field] || '').trim()) errors[field] = message;
   });
   if (!errors.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(values.email).trim())) errors.email = 'Enter a valid email address.';
-  if (!errors.phone && !/^[+\d\s()-]{8,}$/.test(String(values.phone).trim())) errors.phone = 'Enter a valid phone number.';
+  if (!errors.phone && !isEgyptianMobileNumber(values.phone)) errors.phone = 'Enter a valid Egyptian mobile number.';
   return errors;
 }
 

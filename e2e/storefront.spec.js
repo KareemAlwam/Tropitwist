@@ -56,11 +56,15 @@ test('desktop customer flow validates fields and places a COD order', async ({ p
   await page.locator('input[name="firstName"]').fill('Browser');
   await page.locator('input[name="lastName"]').fill('Test');
   await page.locator('input[name="email"]').fill(email);
-  await page.locator('input[name="phone"]').fill('01000000000');
+  await page.locator('input[name="phone"]').fill('12345678');
   await page.locator('input[name="address"]').fill('12 Nile Street');
   await page.locator('input[name="city"]').fill('Cairo');
   await page.locator('input[name="area"]').fill('Dokki');
   await expect(page.locator('input[value="paymob-card"]')).toBeDisabled();
+  await page.getByRole('button', { name: /PLACE ORDER/ }).click();
+  await expect(page.getByText('Enter a valid Egyptian mobile number.')).toBeVisible();
+  await expect(page.locator('input[name="phone"]')).toHaveClass(/border-cherry/);
+  await page.locator('input[name="phone"]').fill('+20 10 0000 0000');
   await page.getByRole('button', { name: /PLACE ORDER/ }).click();
   await expect(page.getByText('Your order has been placed. You can view it in your account dashboard.')).toBeVisible();
 

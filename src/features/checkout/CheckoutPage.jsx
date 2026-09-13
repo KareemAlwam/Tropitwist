@@ -142,7 +142,7 @@ export default function Checkout() {
                 ['email', 'EMAIL ADDRESS', '', 'sm:col-span-2'],
                 ['phone', 'PHONE NUMBER', savedAddress.phone, 'sm:col-span-2'],
               ].map(([name, label, value, layout]) => (
-                <label key={name} className={`text-xs font-bold tracking-wide ${layout}`}>{label}{fieldErrors[name] && <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-full bg-cherry align-middle" />}<input name={name} type={name === 'email' ? 'email' : name === 'phone' ? 'tel' : 'text'} defaultValue={value} aria-invalid={Boolean(fieldErrors[name])} className={`checkout-input ${fieldErrors[name] ? 'border-2 border-cherry' : ''}`} />{fieldErrors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors[name]}</span>}</label>
+                <label key={name} className={`text-xs font-bold tracking-wide ${layout}`}>{label}{fieldErrors[name] && <span aria-hidden="true" className="ml-1 inline-block h-2 w-2 rounded-full bg-cherry align-middle" />}<input name={name} type={name === 'email' ? 'email' : name === 'phone' ? 'tel' : 'text'} inputMode={name === 'phone' ? 'tel' : undefined} autoComplete={name === 'phone' ? 'tel' : undefined} placeholder={name === 'phone' ? '01X XXX XXXX' : undefined} defaultValue={value} aria-invalid={Boolean(fieldErrors[name])} className={`checkout-input ${fieldErrors[name] ? 'border-2 border-cherry' : ''}`} />{fieldErrors[name] && <span className="mt-1 block text-[11px] font-normal text-cherry">{fieldErrors[name]}</span>}</label>
               ))}
             </div>
           </section>
