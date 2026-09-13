@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import { errorHandler } from './lib/errors.js';
 import { createApiRouter } from './routes/api.js';
 import { MemoryStore } from './store/memory-store.js';
+import { createStore } from './store/postgres-store.js';
 
 export function createApp({ store = new MemoryStore() } = {}) {
   const app = express();
@@ -44,4 +45,11 @@ export function createApp({ store = new MemoryStore() } = {}) {
   app.use(errorHandler);
 
   return app;
+}
+
+let vercelApp;
+
+export default async function vercelHandler(request, response) {
+  vercelApp ||= createStore(env.DATABASE_URL).then((store) => createApp({ store }));
+  return (await vercelApp)(request, response);
 }
