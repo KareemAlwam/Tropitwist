@@ -37,12 +37,19 @@ export async function restoreSession(forceRefresh = false) {
   if (!refreshInFlight) {
     refreshInFlight = loadCsrfToken().then((token) => token && send('/api/v1/auth/refresh', { method: 'POST' }))
       .then(async (response) => {
-        if (!response?.ok) return null;
+        if (!response) return null;
+        if (!response.ok) {
+          logSessionRestoreFailure('refresh', response);
+          return null;
+        }
         const body = await response.json();
         setSession(body.data);
         return getSession();
       })
-      .catch(() => null)
+      .catch((error) => {
+        logSessionRestoreFailure('network', null, error);
+        return null;
+      })
       .finally(() => { refreshInFlight = null; });
   }
   return refreshInFlight;
@@ -96,8 +103,24 @@ async function send(path, options) {
 async function loadCsrfToken() {
   if (csrfToken) return csrfToken;
   const response = await send('/api/v1/auth/csrf', { method: 'GET' });
-  if (!response.ok) return null;
+  if (!response.ok) {
+    logSessionRestoreFailure('csrf', response);
+    return null;
+  }
   const body = await response.json();
   csrfToken = body?.data?.csrfToken || null;
   return csrfToken;
+}
+
+function logSessionRestoreFailure(stage, response, error) {
+  const requestId = response?.headers.get('x-request-id')
+    || response?.headers.get('x-vercel-id')
+    || response?.headers.get('cf-ray')
+    || null;
+  console.warn('[auth] Session restoration failed.', {
+    stage,
+    status: response?.status || null,
+    requestId,
+    errorType: error?.name || null,
+  });
 }

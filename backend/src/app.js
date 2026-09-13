@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import express from 'express';
 import { env } from './config/env.js';
@@ -12,14 +13,17 @@ export function createApp({ store = new MemoryStore() } = {}) {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   const origins = env.FRONTEND_ORIGIN.split(',').map((origin) => origin.trim());
-  app.use(cors({ origin: origins, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Id', 'X-CSRF-Token'] }));
-  app.use((_request, response, next) => {
+  app.use(cors({ origin: origins, credentials: true, allowedHeaders: ['Content-Type', 'Authorization', 'X-Cart-Id', 'X-CSRF-Token'], exposedHeaders: ['X-Request-Id'] }));
+  app.use((request, response, next) => {
+    const incomingRequestId = request.get('x-request-id');
+    request.id = incomingRequestId && /^[A-Za-z0-9._-]{1,100}$/.test(incomingRequestId) ? incomingRequestId : randomUUID();
     response.set({
       'Cross-Origin-Resource-Policy': 'same-site',
       'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
+      'X-Request-Id': request.id,
     });
     if (env.NODE_ENV === 'production') response.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();

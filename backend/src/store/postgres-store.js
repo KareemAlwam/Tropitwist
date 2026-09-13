@@ -4,6 +4,7 @@ import { hashToken } from '../lib/security.js';
 
 const { Pool } = pg;
 const iso = (value) => value instanceof Date ? value.toISOString() : value;
+const userFromRow = (row) => ({ id: row.id, firstName: row.first_name, lastName: row.last_name, email: row.email, passwordHash: row.password_hash, role: row.role, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at) });
 const productValues = (product) => [product.id, product.slug, product.name, product.category, product.type, product.price, product.compareAtPrice ?? null, product.size, product.inventory, product.featured, product.bestseller, product.status, product.description, product.detail, product.image];
 const productUpsert = `
   INSERT INTO products VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
@@ -61,8 +62,9 @@ async function applyMigrations(pool) {
   }
 }
 
-// The route layer keeps its synchronous store contract. PostgreSQL persists the
-// same domain records into normalized tables in a transaction after each write.
+// PostgreSQL persists the same domain records into normalized tables in a
+// transaction after each write. Authentication lookups query PostgreSQL
+// directly so warm serverless instances never use a stale session snapshot.
 export class PostgresStore extends MemoryStore {
   constructor(connectionString) {
     super();
@@ -91,7 +93,7 @@ export class PostgresStore extends MemoryStore {
       this.pool.query('SELECT * FROM products ORDER BY id'), this.pool.query('SELECT * FROM users ORDER BY id'), this.pool.query('SELECT * FROM sessions ORDER BY id'), this.pool.query('SELECT * FROM carts ORDER BY owner, product_id'), this.pool.query('SELECT * FROM addresses ORDER BY created_at'), this.pool.query('SELECT * FROM orders ORDER BY created_at'), this.pool.query('SELECT * FROM order_items ORDER BY order_id, product_id'), this.pool.query('SELECT * FROM wishlists ORDER BY user_id, product_id'), this.pool.query('SELECT * FROM newsletter_subscriptions ORDER BY email'),
     ]);
     this.products = products.rows.map((row) => ({ id: row.id, slug: row.slug, name: row.name, category: row.category, type: row.type, price: row.price, compareAtPrice: row.compare_at_price, size: row.size, inventory: row.inventory, featured: row.featured, bestseller: row.bestseller, status: row.status, description: row.description, detail: row.detail, image: row.image }));
-    this.users = users.rows.map((row) => ({ id: row.id, firstName: row.first_name, lastName: row.last_name, email: row.email, passwordHash: row.password_hash, role: row.role, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at) }));
+    this.users = users.rows.map(userFromRow);
     this.sessions = sessions.rows.map((row) => ({ id: row.id, userId: row.user_id, tokenHash: row.token_hash, expiresAt: iso(row.expires_at) }));
     this.carts = new Map();
     for (const row of carts.rows) this.carts.set(row.owner, [...(this.carts.get(row.owner) || []), { productId: row.product_id, quantity: row.quantity }]);
@@ -157,6 +159,25 @@ export class PostgresStore extends MemoryStore {
     const value = super.updateUser(...args); const user = this.findUser(value.id);
     this.queueWrite(() => this.pool.query('UPDATE users SET first_name = $1, last_name = $2, email = $3, password_hash = $4, role = $5, updated_at = $6 WHERE id = $7', [user.firstName, user.lastName, user.email, user.passwordHash, user.role, user.updatedAt, user.id]));
     return value;
+  }
+
+  async resolveUserByEmail(email) {
+    const result = await this.pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+    return result.rows[0] ? userFromRow(result.rows[0]) : null;
+  }
+
+  async resolveUser(id) {
+    const result = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0] ? userFromRow(result.rows[0]) : null;
+  }
+
+  async userForToken(token) {
+    const result = await this.pool.query(`
+      SELECT users.* FROM sessions
+      JOIN users ON users.id = sessions.user_id
+      WHERE sessions.token_hash = $1 AND sessions.expires_at > NOW()
+    `, [hashToken(token)]);
+    return result.rows[0] ? this.publicUser(userFromRow(result.rows[0])) : null;
   }
 
   createSession(...args) {

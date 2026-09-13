@@ -1,32 +1,22 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { route } from '../../utils/routes';
-import { api, cartHeaders, clearSession, getSession, restoreSession, setSession } from '../../services/api';
+import { api, cartHeaders, clearSession, getSession, setSession } from '../../services/api';
 
 const initialForm = { firstName: '', lastName: '', email: '', password: '', confirmPassword: '' };
 
 export default function Account() {
   const [mode, setMode] = useState('login');
-  const existingSession = getSession();
-  const [isDashboard, setIsDashboard] = useState(() => Boolean(existingSession));
-  const [isRestoringSession, setIsRestoringSession] = useState(() => !existingSession);
+  const { user, isAuthenticated, isRestoring } = useAuth();
   const [form, setForm] = useState(initialForm);
-  const [accountProfile, setAccountProfile] = useState(() => existingSession?.user || { firstName: '', lastName: '', email: '' });
+  const [accountProfile, setAccountProfile] = useState(() => user || { firstName: '', lastName: '', email: '' });
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState('');
   const continueToCheckout = new URLSearchParams(window.location.search).get('next') === 'checkout';
 
   useEffect(() => {
-    let active = true;
-    restoreSession().then((savedSession) => {
-      if (!active) return;
-      if (savedSession) {
-        setAccountProfile(savedSession.user);
-        setIsDashboard(true);
-      }
-      setIsRestoringSession(false);
-    });
-    return () => { active = false; };
-  }, []);
+    if (user) setAccountProfile(user);
+  }, [user]);
 
   function updateField(event) {
     const { name, value } = event.target;
@@ -60,7 +50,6 @@ export default function Account() {
       const data = await api(`/auth/${mode === 'register' ? 'register' : 'login'}`, { method: 'POST', headers: cartHeaders(), body: JSON.stringify(payload) });
       setSession(data);
       setAccountProfile(data.user);
-      setIsDashboard(true);
       if (continueToCheckout) window.location.assign(route('/checkout'));
     } catch (error) { setStatus(error.message); }
   }
@@ -75,15 +64,14 @@ export default function Account() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-12 md:py-20">
-      {isRestoringSession ? (
+      {isRestoring ? (
         <section className="mx-auto max-w-2xl rounded-brand bg-[#FFF1D8] p-10 text-center" role="status">
           <p className="text-sm text-ink/60">Loading your account...</p>
         </section>
-      ) : isDashboard ? (
+      ) : isAuthenticated ? (
         <Dashboard profile={accountProfile} onProfileUpdate={setAccountProfile} onSignOut={async () => {
           try { await api('/auth/logout', { method: 'POST', skipAuthRefresh: true }); } catch { /* Clear the local state even if the network is unavailable. */ }
           clearSession();
-          setIsDashboard(false);
           setForm(initialForm);
           setStatus('');
         }} />

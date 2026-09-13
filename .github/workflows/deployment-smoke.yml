@@ -1,0 +1,62 @@
+name: Verify Vercel Authentication
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Verify Application]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-auth-smoke
+  cancel-in-progress: true
+
+jobs:
+  authentication:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PLAYWRIGHT_BASE_URL: https://tropitwist.vercel.app
+      SMOKE_TEST_EMAIL: ${{ secrets.SMOKE_TEST_EMAIL }}
+      SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
+    steps:
+      - name: Check smoke-test credentials
+        id: credentials
+        run: |
+          if [ -n "$SMOKE_TEST_EMAIL" ] && [ -n "$SMOKE_TEST_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel authentication smoke test skipped: configure SMOKE_TEST_EMAIL and SMOKE_TEST_PASSWORD repository secrets."
+          fi
+      - name: Checkout deployed revision
+        if: steps.credentials.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Setup Node
+        if: steps.credentials.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        if: steps.credentials.outputs.configured == 'true'
+        run: npm ci
+      - name: Install Chromium
+        if: steps.credentials.outputs.configured == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Wait for Vercel and verify authentication
+        if: steps.credentials.outputs.configured == 'true'
+        run: |
+          for attempt in {1..12}; do
+            if npx playwright test e2e/deployment-auth.spec.js --project=desktop; then
+              exit 0
+            fi
+            sleep 15
+          done
+          exit 1

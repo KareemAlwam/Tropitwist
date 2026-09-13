@@ -6,7 +6,7 @@ export default defineConfig({
   retries: 1,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://tropitwist.vercel.app',
-    launchOptions: { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH || '/usr/bin/chromium' },
+    launchOptions: process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : undefined,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

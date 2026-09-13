@@ -39,6 +39,8 @@ test('accounts issue sessions and protect customer data', () => withApi(async (r
   const token = registration.body.data.accessToken;
   assert.equal(typeof token, 'string');
   assert.match(registration.headers.get('set-cookie'), /HttpOnly/);
+  assert.match(registration.headers.get('set-cookie'), /SameSite=Lax/);
+  assert.match(registration.headers.get('x-request-id'), /^[A-Za-z0-9-]+$/);
   assert.equal((await request('/api/v1/me')).status, 401);
   const me = await request('/api/v1/me', { headers: { authorization: `Bearer ${token}` } });
   assert.equal(me.status, 200);

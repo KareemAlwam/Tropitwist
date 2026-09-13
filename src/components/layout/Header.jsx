@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Logo from '../ui/Logo';
+import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { currentRoute, route } from '../../utils/routes';
 
@@ -42,11 +43,18 @@ export default function Header() {
   const closeButtonRef = useRef(null);
   const drawerRef = useRef(null);
   const { itemCount } = useCart();
+  const { user, isAuthenticated, isRestoring } = useAuth();
   const pathname = currentRoute(window.location.pathname);
+  const firstName = user?.firstName?.trim() || '';
   const utilityLinks = [
-    { label: 'Search', href: route('/search') },
-    { label: 'Account', href: route('/account') },
-    { label: 'Wishlist', href: route('/wishlist') },
+    { name: 'Search', label: 'Search', href: route('/search') },
+    {
+      name: 'Account',
+      label: isAuthenticated ? `${firstName || 'Your'} profile` : isRestoring ? 'Checking account' : 'Sign in',
+      mobileLabel: isAuthenticated ? (firstName || 'Profile') : 'Sign in',
+      href: route('/account'),
+    },
+    { name: 'Wishlist', label: 'Wishlist', href: route('/wishlist') },
   ];
 
   const isActive = (item) => pathname === (item.match || currentRoute(new URL(item.href, window.location.origin).pathname));
@@ -105,8 +113,21 @@ export default function Header() {
           </nav>
           <div className="flex items-center gap-1 md:gap-2">
             {utilityLinks.map((item) => (
-              <a key={item.label} href={item.href} aria-label={item.label} className={`${item.label === 'Account' || item.label === 'Wishlist' ? 'hidden md:block ' : ''}p-2 text-ink hover:text-cherry`}>
-                <NavIcon name={item.label} />
+              <a
+                key={item.name}
+                href={item.href}
+                aria-label={item.label}
+                aria-current={item.name === 'Account' && pathname === '/account' ? 'page' : undefined}
+                className={`${item.name === 'Account' || item.name === 'Wishlist' ? 'hidden md:flex ' : ''}${item.name === 'Account' && isAuthenticated ? 'items-center gap-2 rounded-full bg-banana/35 py-1.5 pl-1.5 pr-3 ' : ''}p-2 text-ink hover:text-cherry`}
+              >
+                {item.name === 'Account' && isAuthenticated ? (
+                  <>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cherry text-[11px] font-bold text-cream" aria-hidden="true">
+                      {(firstName || user.email || 'A').charAt(0).toUpperCase()}
+                    </span>
+                    <span className="max-w-24 truncate text-[10px] font-bold tracking-wide">{firstName || 'PROFILE'}</span>
+                  </>
+                ) : <NavIcon name={item.name} />}
               </a>
             ))}
             <a href={route('/cart')} aria-label={`Cart, ${itemCount} items`} className="relative p-2 text-ink hover:text-cherry">
@@ -145,9 +166,13 @@ export default function Header() {
               <p className="mb-3 text-[10px] font-bold tracking-[0.24em] text-ink/50">QUICK LINKS</p>
               <div className="grid grid-cols-3 gap-2">
                 {utilityLinks.map((item) => (
-                  <a key={item.label} href={item.href} className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-xl border border-ink/10 bg-banana/10 px-2 py-3 text-[9px] font-bold tracking-wider text-ink transition-colors hover:border-cherry hover:text-cherry">
-                    <NavIcon name={item.label} />
-                    {item.label.toUpperCase()}
+                  <a key={item.name} href={item.href} aria-label={item.label} className={`flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-3 text-[9px] font-bold tracking-wider text-ink transition-colors hover:border-cherry hover:text-cherry ${item.name === 'Account' && isAuthenticated ? 'border-cherry/30 bg-banana/35' : 'border-ink/10 bg-banana/10'}`}>
+                    {item.name === 'Account' && isAuthenticated ? (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cherry text-[11px] text-cream" aria-hidden="true">
+                        {(firstName || user.email || 'A').charAt(0).toUpperCase()}
+                      </span>
+                    ) : <NavIcon name={item.name} />}
+                    {(item.mobileLabel || item.label).toUpperCase()}
                   </a>
                 ))}
               </div>

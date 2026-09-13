@@ -15,40 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  redirect:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Build
-        env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
-        run: npm run build
-      - name: Add SPA fallback
-        run: |
-          cp dist/index.html dist/404.html
-          for route in skincare body-care bundles about search cart checkout account wishlist admin products; do
-            mkdir -p "dist/$route"
-            cp dist/index.html "dist/$route/index.html"
-          done
-          for product_id in $(grep -oE "id: '[^']+'" src/data/products.js | cut -d"'" -f2); do
-            mkdir -p "dist/products/$product_id"
-            cp dist/index.html "dist/products/$product_id/index.html"
-          done
+      - name: Add fallback redirect
+        run: cp deployment/github-pages/index.html deployment/github-pages/404.html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: deployment/github-pages
 
   deploy:
-    needs: build
+    needs: redirect
     runs-on: ubuntu-latest
     environment:
       name: github-pages

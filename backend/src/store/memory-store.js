@@ -26,6 +26,8 @@ export class MemoryStore {
 
   findUserByEmail(email) { return this.users.find((user) => user.email === email.toLowerCase()); }
   findUser(id) { return this.users.find((user) => user.id === id); }
+  async resolveUserByEmail(email) { return this.findUserByEmail(email); }
+  async resolveUser(id) { return this.findUser(id); }
   createUser(input) {
     const now = new Date().toISOString();
     const user = { id: this.newId('usr'), ...input, email: input.email.toLowerCase(), role: input.role || 'customer', createdAt: now, updatedAt: now };
@@ -40,7 +42,7 @@ export class MemoryStore {
   createSession(userId, token, expiresAt) {
     this.sessions.push({ id: this.newId('ses'), userId, tokenHash: hashToken(token), expiresAt });
   }
-  userForToken(token) {
+  async userForToken(token) {
     const session = this.sessions.find((item) => item.tokenHash === hashToken(token) && new Date(item.expiresAt) > new Date());
     return session ? this.publicUser(this.findUser(session.userId)) : null;
   }

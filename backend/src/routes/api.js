@@ -36,13 +36,13 @@ function refreshToken(request) {
 }
 
 function setRefreshCookie(response, token, expiresAt) {
-  const parts = [`tropitwist_refresh=${token}`, 'HttpOnly', 'Path=/api', `Max-Age=${Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))}`, `SameSite=${env.NODE_ENV === 'production' ? 'None' : 'Lax'}`];
+  const parts = [`tropitwist_refresh=${token}`, 'HttpOnly', 'Path=/api', `Max-Age=${Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))}`, 'SameSite=Lax'];
   if (env.NODE_ENV === 'production') parts.push('Secure');
   response.append('Set-Cookie', parts.join('; '));
 }
 
 function clearRefreshCookie(response) {
-  const parts = ['tropitwist_refresh=', 'HttpOnly', 'Path=/api', 'Max-Age=0', `SameSite=${env.NODE_ENV === 'production' ? 'None' : 'Lax'}`];
+  const parts = ['tropitwist_refresh=', 'HttpOnly', 'Path=/api', 'Max-Age=0', 'SameSite=Lax'];
   if (env.NODE_ENV === 'production') parts.push('Secure');
   response.append('Set-Cookie', parts.join('; '));
 }
@@ -56,11 +56,11 @@ function authenticationResponse(store, response, user) {
 }
 
 function optionalUser(store) {
-  return (request, _response, next) => {
+  return asyncRoute(async (request, _response, next) => {
     const claims = verifyAccessToken(bearerToken(request), env.JWT_ACCESS_SECRET);
-    request.user = claims ? store.publicUser(store.findUser(claims.sub)) : null;
+    request.user = claims ? store.publicUser(await store.resolveUser(claims.sub)) : null;
     next();
-  };
+  });
 }
 
 function requireUser(request, _response, next) {
@@ -184,7 +184,7 @@ export function createApiRouter(store) {
 
   router.post('/auth/register', registrationLimiter, asyncRoute(async (request, response) => {
     const input = z.object({ firstName: z.string().trim().min(1).max(80), lastName: z.string().trim().min(1).max(80), email, password }).parse(request.body);
-    if (store.findUserByEmail(input.email)) throw new ApiError(409, 'EMAIL_IN_USE', 'An account already exists for this email.');
+    if (await store.resolveUserByEmail(input.email)) throw new ApiError(409, 'EMAIL_IN_USE', 'An account already exists for this email.');
     const { password: rawPassword, ...profile } = input;
     const adminEmails = env.ADMIN_EMAILS.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
     const user = store.createUser({ ...profile, role: adminEmails.includes(profile.email) ? 'admin' : 'customer', passwordHash: hashPassword(rawPassword) });
@@ -196,7 +196,7 @@ export function createApiRouter(store) {
 
   router.post('/auth/login', loginLimiter, asyncRoute(async (request, response) => {
     const input = z.object({ email, password }).parse(request.body);
-    const record = store.findUserByEmail(input.email);
+    const record = await store.resolveUserByEmail(input.email);
     if (!record || !verifyPassword(input.password, record.passwordHash)) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.');
     const user = store.publicUser(record);
     if (request.get('x-cart-id')) store.mergeCart(`guest:${request.get('x-cart-id')}`, `user:${record.id}`);
@@ -205,15 +205,15 @@ export function createApiRouter(store) {
     response.json({ data });
   }));
 
-  router.get('/auth/csrf', refreshLimiter, (request, response) => {
+  router.get('/auth/csrf', refreshLimiter, asyncRoute(async (request, response) => {
     const token = refreshToken(request);
-    if (!token || !store.userForToken(token)) throw new ApiError(401, 'UNAUTHORIZED', 'Sign in to continue.');
+    if (!token || !await store.userForToken(token)) throw new ApiError(401, 'UNAUTHORIZED', 'Sign in to continue.');
     response.json({ data: { csrfToken: createCsrfToken(token, env.JWT_ACCESS_SECRET) } });
-  });
+  }));
 
   router.post('/auth/refresh', refreshLimiter, asyncRoute(async (request, response) => {
     const token = refreshToken(request);
-    const user = token ? store.userForToken(token) : null;
+    const user = token ? await store.userForToken(token) : null;
     if (!verifyCsrfToken(token, request.get('x-csrf-token'), env.JWT_ACCESS_SECRET)) throw new ApiError(403, 'CSRF_INVALID', 'The security token is missing or invalid.');
     if (!user) {
       clearRefreshCookie(response);

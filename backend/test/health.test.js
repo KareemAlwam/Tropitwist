@@ -14,6 +14,7 @@ test('GET /api/v1/health reports that the API is available', async () => {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(response.headers.get('x-frame-options'), 'DENY');
+    assert.match(response.headers.get('x-request-id'), /^[A-Za-z0-9-]+$/);
     assert.deepEqual(await response.json(), {
       status: 'ok',
       service: 'tropitwist-api',
