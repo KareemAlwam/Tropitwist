@@ -397,7 +397,7 @@ export function adminDashboard(store) {
       { key: 'customers', label: 'Customers', value: store.users.length, change: 'Registered accounts' },
     ],
     orders: store.orders.slice(-10).reverse().map((order) => ({ id: order.id, customer: `${order.customer.firstName} ${order.customer.lastName}`, date: order.createdAt.slice(0, 10), total: `LE ${order.total}`, status: order.status })),
-    products: store.products.map((product) => ({ id: product.id, name: product.name, category: product.category, size: product.size, price: `LE ${product.price}`, inventory: product.inventory, status: product.status })),
+    products: store.products.map((product) => ({ id: product.id, name: product.name, category: product.category, size: product.size, price: `LE ${product.price}`, inventory: product.inventory, featured: product.featured, bestseller: product.bestseller, status: product.status })),
     customers: store.users.map((user) => ({ id: user.id, name: `${user.firstName} ${user.lastName}`, email: user.email })),
     chart: { label: 'STORE ACTIVITY', headline: `${store.orders.length} orders`, values: [0, 0, 0, 0, 0, 0, Math.min(100, store.orders.length * 10)] },
   };

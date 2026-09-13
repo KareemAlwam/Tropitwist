@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createApp } from '../src/app.js';
+import { env } from '../src/config/env.js';
+import { createAccessToken } from '../src/lib/security.js';
+import { MemoryStore } from '../src/store/memory-store.js';
 
-async function withApi(run) {
-  const server = createApp().listen(0, '127.0.0.1');
+async function withApi(run, store = undefined) {
+  const server = createApp({ store }).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => { server.once('listening', resolve); server.once('error', reject); });
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   const request = async (path, options = {}) => {
@@ -117,6 +120,24 @@ test('admin dashboard rejects a regular customer', () => withApi(async (request)
   assert.equal(dashboard.status, 403);
   assert.equal(dashboard.body.error.code, 'FORBIDDEN');
 }));
+
+test('admin can control homepage and bestseller product flags', () => {
+  const store = new MemoryStore();
+  const admin = store.createUser({ firstName: 'Store', lastName: 'Admin', email: 'admin@example.com', passwordHash: 'not-used-in-this-test', role: 'admin' });
+  const token = createAccessToken(admin, env.JWT_ACCESS_SECRET, env.ACCESS_TOKEN_TTL_MINUTES);
+  return withApi(async (request) => {
+    const headers = { authorization: `Bearer ${token}` };
+    const updated = await request('/api/admin/products/p1', { method: 'PATCH', headers, body: { featured: false, bestseller: false } });
+    assert.equal(updated.status, 200);
+    assert.equal(updated.body.data.featured, false);
+    assert.equal(updated.body.data.bestseller, false);
+    const dashboard = await request('/api/admin/dashboard', { headers });
+    assert.equal(dashboard.status, 200);
+    const product = dashboard.body.products.find((item) => item.id === 'p1');
+    assert.equal(product.featured, false);
+    assert.equal(product.bestseller, false);
+  }, store);
+});
 
 test('refresh tokens rotate in an HttpOnly cookie and logout revokes the session', () => withApi(async (request) => {
   const registration = await request('/api/v1/auth/register', { method: 'POST', body: { firstName: 'Mona', lastName: 'Ali', email: 'mona@example.com', password: 'safe-password' } });

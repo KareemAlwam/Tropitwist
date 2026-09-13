@@ -5,7 +5,7 @@ import { route } from '../../utils/routes';
 
 export default function Bestsellers() {
   const { addToCart } = useCart();
-  const { products, status } = useProductCatalog();
+  const { products, status, error, reload } = useProductCatalog();
   const featuredProducts = products.filter((product) => product.featured !== false).slice(0, 3);
   return (
     <section className="py-16 md:py-24 bg-cream">
@@ -17,7 +17,9 @@ export default function Bestsellers() {
           </div>
           <a href={route('/search')} className="hidden md:inline font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors">VIEW ALL PRODUCTS →</a>
         </div>
-        {status === 'loading' ? <ProductGridSkeleton /> : (
+        {status === 'loading' ? <ProductGridSkeleton /> : status === 'error' ? (
+          <div className="rounded-brand bg-banana p-8 text-center"><p className="text-sm text-ink/65">{error}</p><button type="button" onClick={reload} className="mt-5 rounded-full bg-ink px-5 py-3 text-[10px] font-bold tracking-widest text-cream hover:bg-cherry">TRY AGAIN</button></div>
+        ) : featuredProducts.length ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
           {featuredProducts.map((product, index) => (
             <article key={product.id} className="group motion-rise" style={{ animationDelay: `${(index + 1) * 100}ms` }}>
@@ -47,6 +49,8 @@ export default function Bestsellers() {
             </article>
           ))}
           </div>
+        ) : (
+          <div className="rounded-brand border border-ink/10 bg-[#FFF1D8] p-8 text-center"><p className="text-sm text-ink/65">No bestsellers have been selected yet.</p></div>
         )}
         <div className="mt-10 text-center md:hidden"><a href={route('/search')} className="inline-block font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors border-b border-cherry pb-1">VIEW ALL PRODUCTS</a></div>
       </div>
