@@ -94,7 +94,7 @@ export default function Account() {
             {mode === 'register' && field('lastName', 'LAST NAME')}
             {field('email', 'EMAIL ADDRESS', 'email', 'sm:col-span-2')}
             {field('password', 'PASSWORD', 'password', mode === 'login' ? 'sm:col-span-2' : '')}
-            {mode === 'register' && field('confirmPassword', 'CONFIRM PASSWORD')}
+            {mode === 'register' && field('confirmPassword', 'CONFIRM PASSWORD', 'password')}
             <button type="submit" className="sm:col-span-2 mt-3 w-full rounded-full bg-cherry text-cream py-4 text-xs font-bold tracking-widest hover:bg-ink transition-colors">
               {mode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT'}
             </button>

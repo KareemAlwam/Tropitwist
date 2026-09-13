@@ -35,6 +35,7 @@ test('desktop customer flow validates fields and places a COD order', async ({ p
 
   await page.getByRole('button', { name: 'CREATE ACCOUNT' }).first().click();
   const accountForm = page.locator('form').filter({ has: page.locator('input[name="firstName"]') });
+  await expect(page.locator('input[name="confirmPassword"]')).toHaveAttribute('type', 'password');
   await accountForm.getByRole('button', { name: 'CREATE ACCOUNT' }).click();
   await expect(page.locator('input[name="firstName"]')).toHaveClass(/border-cherry/);
   await expect(page.locator('input[name="email"]')).toHaveClass(/border-cherry/);
