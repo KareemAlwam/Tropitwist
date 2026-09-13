@@ -71,3 +71,6 @@ future single-VPS deployment.
 
 GitHub Actions runs the frontend production build and backend API test suite on
 pull requests and pushes to `main`.
+
+For a no-card staging deployment using two Vercel projects and Neon, follow
+[`docs/vercel-staging-deployment.md`](docs/vercel-staging-deployment.md).
