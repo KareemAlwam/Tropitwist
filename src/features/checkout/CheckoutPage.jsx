@@ -177,7 +177,7 @@ export default function Checkout() {
             {paymentMethod === 'paymob-card' ? 'CONTINUE TO SECURE PAYMENT' : `PLACE ORDER · LE ${total}`}
           </button>
           {validationError && <p role="alert" className="rounded-brand bg-cherry/10 p-4 text-sm text-cherry">{validationError}</p>}
-          {submitted && <p className="rounded-brand bg-banana p-4 text-sm text-ink">Your order details are ready to be sent to the backend.</p>}
+          {submitted && <p className="rounded-brand bg-banana p-4 text-sm text-ink">Your order has been placed. You can view it in your account dashboard.</p>}
         </form>
 
         <aside className="card-enter motion-delay-2 rounded-brand bg-[#FFF1D8] p-6 md:p-8 lg:sticky lg:top-28">
