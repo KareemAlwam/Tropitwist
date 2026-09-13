@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { useProductCatalog } from '../../context/ProductCatalogContext';
+import ProductGridSkeleton from '../../components/catalog/ProductGridSkeleton';
 import { route } from '../../utils/routes';
 
 const FILTERS = ['All products', 'Skincare', 'Body care', 'Bundles'];
@@ -77,11 +78,11 @@ export default function Search() {
           </div>
         </div>
 
-        <p className="text-xs text-ink/50 mb-6">{status === 'loading' ? 'Loading products...' : `${results.length} ${results.length === 1 ? 'product' : 'products'} found${query ? ` for “${query}”` : ''}`}</p>
+        <p className="text-xs text-ink/50 mb-6">{status === 'loading' ? 'Loading catalog...' : `${results.length} ${results.length === 1 ? 'product' : 'products'} found${query ? ` for “${query}”` : ''}`}</p>
         {status === 'error' ? (
           <div className="card-enter rounded-brand bg-banana p-12 text-center"><h2 className="font-display font-bold text-5xl">CATALOG UNAVAILABLE.</h2><p className="mt-3 text-sm text-ink/65">{error}</p></div>
         ) : status === 'loading' ? (
-          <div className="card-enter rounded-brand bg-banana p-12 text-center"><p className="text-sm text-ink/65">Loading products...</p></div>
+          <ProductGridSkeleton />
         ) : results.length ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-12">
             {results.map((product, index) => (

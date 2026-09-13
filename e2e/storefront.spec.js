@@ -10,6 +10,18 @@ test('all storefront routes return the React application', async ({ page }) => {
   }
 });
 
+test('catalog shows loading cards instead of an empty state while products load', async ({ page }) => {
+  await page.route('**/api/v1/products?limit=100', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.continue();
+  });
+  await page.goto('/skincare');
+  await expect(page.getByRole('status', { name: 'Loading products' })).toBeVisible();
+  await expect(page.getByText('NOTHING HERE YET.')).toHaveCount(0);
+  await expect(page.getByRole('status', { name: 'Loading products' })).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'SKIN, SIMPLIFIED.' })).toBeVisible();
+});
+
 test('desktop customer flow validates fields and places a COD order', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Desktop-only checkout flow.');
   await page.goto('/search');

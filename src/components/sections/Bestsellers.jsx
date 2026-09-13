@@ -1,5 +1,6 @@
 import { useCart } from '../../context/CartContext';
 import { useProductCatalog } from '../../context/ProductCatalogContext';
+import ProductGridSkeleton from '../catalog/ProductGridSkeleton';
 import { route } from '../../utils/routes';
 
 export default function Bestsellers() {
@@ -16,8 +17,9 @@ export default function Bestsellers() {
           </div>
           <a href={route('/search')} className="hidden md:inline font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors">VIEW ALL PRODUCTS →</a>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
-          {status === 'loading' ? <p className="text-sm text-ink/65">Loading products...</p> : featuredProducts.map((product, index) => (
+        {status === 'loading' ? <ProductGridSkeleton /> : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 md:gap-6">
+          {featuredProducts.map((product, index) => (
             <article key={product.id} className="group motion-rise" style={{ animationDelay: `${(index + 1) * 100}ms` }}>
               <a href={route(`/products/${product.id}`)} className="block product-tile rounded-brand aspect-[4/5] relative overflow-hidden mb-4 soft-shadow">
                 {product.bestseller && (
@@ -44,7 +46,8 @@ export default function Bestsellers() {
               <button onClick={() => addToCart(product.id)} className="mt-4 w-full border border-ink/20 text-ink font-body font-bold text-[10px] tracking-widest py-3 rounded-full hover:bg-cherry hover:border-cherry hover:text-cream hover:-translate-y-1 transition-all duration-300">ADD TO CART</button>
             </article>
           ))}
-        </div>
+          </div>
+        )}
         <div className="mt-10 text-center md:hidden"><a href={route('/search')} className="inline-block font-body font-semibold text-xs tracking-widest text-ink hover:text-cherry transition-colors border-b border-cherry pb-1">VIEW ALL PRODUCTS</a></div>
       </div>
     </section>

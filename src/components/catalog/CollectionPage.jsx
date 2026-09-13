@@ -2,6 +2,7 @@ import { useCart } from '../../context/CartContext';
 import { useProductCollection } from '../../hooks/useProductCollection';
 import CollectionControls from './CollectionControls';
 import ProductCard from './ProductCard';
+import ProductGridSkeleton from './ProductGridSkeleton';
 
 export default function CollectionPage({ config }) {
   const { addToCart } = useCart();
@@ -25,7 +26,7 @@ export default function CollectionPage({ config }) {
       <section className="mx-auto max-w-7xl px-4 py-8 md:py-12">
         <CollectionControls filters={config.filters} state={state} placeholder={config.searchPlaceholder} />
         {state.status === 'loading' ? (
-          <div className="rounded-brand bg-banana p-10 text-center"><p className="text-sm text-ink/65">Loading products...</p></div>
+          <ProductGridSkeleton />
         ) : state.status === 'error' ? (
           <div className="rounded-brand bg-banana p-10 text-center"><p className="text-sm text-ink/65">{state.error}</p></div>
         ) : state.items.length ? (
