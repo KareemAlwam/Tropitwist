@@ -1,5 +1,8 @@
 # Tropitwist Hosted Deployment
 
+> Archived alternative deployment guide. The active Tropitwist staging setup is
+> [Vercel Services](vercel-staging-deployment.md), not Cloudflare Pages.
+
 This is the low-cost deployment path for the first six months: Cloudflare Pages
 for the storefront, Render for the Express API, and Neon for PostgreSQL. The
 repository is already configured for it with `render.yaml` and `public/_redirects`.

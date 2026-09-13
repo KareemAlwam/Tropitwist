@@ -1,5 +1,8 @@
 # Tropitwist VPS Production Runbook
 
+> Archived alternative deployment guide. The active Tropitwist staging setup is
+> [Vercel Services](vercel-staging-deployment.md), not GitHub Pages.
+
 Use this runbook only when deploying the Express API and PostgreSQL database to
 one self-managed VPS. For the current Cloudflare Pages, Render, and Neon plan,
 follow [Hosted Production Deployment](hosted-production-deployment.md).
